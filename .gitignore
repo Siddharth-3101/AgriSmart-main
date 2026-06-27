@@ -1,0 +1,23 @@
+# Maven target directories
+**/target/
+target/
+
+# Node modules
+**/node_modules/
+node_modules/
+
+# Production build artifacts
+**/dist/
+dist/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS files
+.DS_Store
+Thumbs.db

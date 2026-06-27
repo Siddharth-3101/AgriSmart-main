@@ -1694,6 +1694,13 @@ export default function App() {
     setBroadcastForm({ title: '', type: 'General Alert', targetRegion: 'All Regions', message: '' });
   };
 
+  const handleNotifDelete = (id) => {
+    const updated = broadcastNotifications.filter(n => n.id !== id);
+    setBroadcastNotifications(updated);
+    localStorage.setItem('broadcast_notifications', JSON.stringify(updated));
+    setSuccessMsg('Broadcast alert revoked successfully.');
+  };
+
   const handleTogglePossessedDoc = (doc) => {
     setPossessedDocs(prev => {
       const updated = prev.includes(doc) ? prev.filter(d => d !== doc) : [...prev, doc];

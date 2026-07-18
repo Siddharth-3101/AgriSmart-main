@@ -1,108 +1,233 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { motion } from "framer-motion";
+import { toast } from "react-toastify";
+import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaLeaf } from "react-icons/fa";
+import bgVideo from "../assets/greenwhitevideo.mp4";
 
-export default function Login({
-  loginEmail,
-  setLoginEmail,
-  loginPassword,
-  setLoginPassword,
-  regForm,
-  setRegForm,
-  handleLogin,
-  handleRegister,
-  errorMsg,
-  successMsg,
-  setErrorMsg,
-  setSuccessMsg
-}) {
-  const [showRegister, setShowRegister] = useState(false);
+// Redux actions
+import { setUser, setToken, setDemoMode, setApiOnline, setFarms, setCrops } from "../main";
 
-  const onRegisterToggle = (reg) => {
-    setErrorMsg('');
-    setSuccessMsg('');
-    setShowRegister(reg);
+function Login() {
+  const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const user = useSelector((state) => state.agri.user);
+
+  React.useEffect(() => {
+    if (user) {
+      navigate(user.role === "OFFICER" ? "/officer/dashboard" : "/dashboard");
+    }
+  }, [user, navigate]);
+
+  const [formData, setFormData] = useState({
+    email: "farmer@agrismart.com",
+    password: "password",
+    remember: false,
+  });
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData({
+      ...formData,
+      [name]: type === "checkbox" ? checked : value,
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      // 1. Try real backend login
+      const res = await fetch("http://localhost:8081/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formData.email, password: formData.password }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        dispatch(setToken(data.token));
+        dispatch(setUser(data.user));
+        dispatch(setApiOnline(true));
+        dispatch(setDemoMode(false));
+        toast.success(`Welcome back, ${data.user.name}!`);
+        
+        // Redirect based on role
+        if (data.user.role === "OFFICER") {
+          navigate("/officer/dashboard");
+        } else {
+          navigate("/dashboard");
+        }
+        return;
+      } else {
+        const err = await res.json();
+        toast.error(err.message || "Invalid credentials.");
+      }
+    } catch (err) {
+      console.warn("User service offline. Validating mock credentials.", err);
+
+      // 2. Fallback to Demo/Mock Mode validations
+      const email = formData.email;
+      const password = formData.password;
+
+      if ((email === "farmer@agrismart.com" || email === "9876543210") && password === "password") {
+        dispatch(setToken("mock-jwt-token-farmer"));
+        dispatch(setDemoMode(true));
+        dispatch(setApiOnline(false));
+
+        const mockUser = {
+          userId: 101,
+          name: "Siddharth",
+          email: "farmer@agrismart.com",
+          phone: "9876543210",
+          role: "FARMER",
+          district: "Coimbatore",
+          state: "Tamil Nadu",
+          createdAt: "2026-01-10T10:30:00",
+        };
+        dispatch(setUser(mockUser));
+        dispatch(setFarms([
+          { farmId: 1, farmName: "Green Valley Farm", location: "Coimbatore", area: 4.0, soilType: "Black Soil", waterSource: "Borewell", latitude: 11.0168, longitude: 76.9558 },
+          { farmId: 2, farmName: "South Farm", location: "Pollachi", area: 2.0, soilType: "Red Soil", waterSource: "Canal", latitude: 10.659, longitude: 77.008 }
+        ]));
+        dispatch(setCrops([
+          { cropId: 1, cropName: "Rice", farmId: 1, plantedDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], duration: 120, status: "ACTIVE", expectedHarvestDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], description: "Paddy crop growing healthy." },
+          { cropId: 2, cropName: "Cotton", farmId: 2, plantedDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], duration: 150, status: "ACTIVE", expectedHarvestDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], description: "Vegetative stage progress." }
+        ]));
+
+        toast.success("Welcome back, Siddharth (Demo Mode)!");
+        navigate("/dashboard");
+      } else if (email === "officer@agrismart.com" && password === "password") {
+        dispatch(setToken("mock-jwt-token-officer"));
+        dispatch(setDemoMode(true));
+        dispatch(setApiOnline(false));
+
+        dispatch(setUser({
+          userId: 102,
+          name: "Officer Priya",
+          email: "officer@agrismart.com",
+          phone: "9777766666",
+          role: "OFFICER",
+          district: "Ambala",
+          state: "Haryana",
+          createdAt: new Date().toISOString(),
+        }));
+
+        toast.success("Welcome back, Officer Priya (Demo Mode)!");
+        navigate("/officer/dashboard");
+      } else if (email === "admin@agrismart.com" && password === "password") {
+        dispatch(setToken("mock-jwt-token-admin"));
+        dispatch(setDemoMode(true));
+        dispatch(setApiOnline(false));
+
+        dispatch(setUser({
+          userId: 1,
+          name: "Siddharth Sharma",
+          email: "admin@agrismart.com",
+          phone: "9999988888",
+          role: "ADMIN",
+          district: "Chandigarh",
+          state: "Punjab",
+          createdAt: new Date().toISOString(),
+        }));
+
+        toast.success("Welcome back, Siddharth Sharma (Demo Mode)!");
+        navigate("/officer/dashboard");
+      } else {
+        toast.error("Invalid email or password. Hint: Use farmer@agrismart.com / password");
+      }
+    }
   };
 
   return (
-    <div style={{
-      display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px 0',
-      animation: 'fadeIn 0.3s ease'
-    }}>
-      <div className="glass-card" style={{ maxWidth: '460px', width: '100%', padding: '36px', background: '#ffffff', borderRadius: '16px', border: '1px solid #c8dfd2' }}>
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-main)' }}>
-            {showRegister ? 'Create Agricultural Account' : 'Sign in to AgriSmart'}
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '13.5px', marginTop: '4px' }}>
-            Farmer Advisory, Weather & Schemes
-          </p>
+    <div className="login-page">
+      {/* Background Video */}
+      <video autoPlay muted loop playsInline className="background-video">
+        <source src={bgVideo} type="video/mp4" />
+      </video>
+
+      {/* Overlay */}
+      <div className="overlay"></div>
+
+      {/* Login Card */}
+      <motion.div
+        className="login-card"
+        initial={{ opacity: 0, y: 80 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+      >
+        <div className="logo-section">
+          <FaLeaf className="leaf-icon" />
+          <h1>AgriSmart</h1>
+          <p>Smart Farming Begins Here</p>
         </div>
 
-        {errorMsg && <div style={{ background: '#fee2e2', border: '1px solid var(--danger)', padding: '12px', borderRadius: '8px', color: 'var(--danger)', fontSize: '13px', marginBottom: '16px' }}>{errorMsg}</div>}
-        {successMsg && <div style={{ background: '#dcfce7', border: '1px solid var(--primary)', padding: '12px', borderRadius: '8px', color: 'var(--primary)', fontSize: '13px', marginBottom: '16px' }}>{successMsg}</div>}
+        <form onSubmit={handleSubmit}>
+          {/* Email */}
+          <div className="input-box">
+            <FaEnvelope className="input-icon" />
+            <input
+              type="text"
+              placeholder="Email or Mobile"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+            />
+          </div>
 
-        {showRegister ? (
-          <form onSubmit={handleRegister}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <input type="text" placeholder="Full Name" required value={regForm.name} onChange={e => setRegForm({...regForm, name: e.target.value})} />
-              <input type="text" placeholder="Mobile Number" required value={regForm.phone} onChange={e => setRegForm({...regForm, phone: e.target.value})} />
-              <input type="email" placeholder="Email Address" required value={regForm.email} onChange={e => setRegForm({...regForm, email: e.target.value})} />
-              <input type="password" placeholder="Password" required value={regForm.password} onChange={e => setRegForm({...regForm, password: e.target.value})} />
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Platform Role</label>
-                <select value={regForm.role} onChange={e => setRegForm({...regForm, role: e.target.value, district: '', state: '', departmentId: ''})}>
-                  <option value="FARMER">Farmer</option>
-                  <option value="OFFICER">Agriculture Officer</option>
-                </select>
-              </div>
+          {/* Password */}
+          <div className="input-box">
+            <FaLock className="input-icon" />
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              required
+            />
+            <span
+              className="eye-icon"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <FaEyeSlash /> : <FaEye />}
+            </span>
+          </div>
 
-              {/* Farmer Role Specific Fields */}
-              {regForm.role === 'FARMER' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <input type="text" placeholder="District" required value={regForm.district} onChange={e => setRegForm({...regForm, district: e.target.value})} />
-                  <input type="text" placeholder="State" required value={regForm.state} onChange={e => setRegForm({...regForm, state: e.target.value})} />
-                </div>
-              )}
+          {/* Remember */}
+          <div className="login-options">
+            <label>
+              <input
+                type="checkbox"
+                name="remember"
+                checked={formData.remember}
+                onChange={handleChange}
+              />
+              Remember Me
+            </label>
+            <Link to="/forgot-password" className="forgot-link">
+              Forgot Password?
+            </Link>
+          </div>
 
-              {/* Officer Role Specific Fields */}
-              {regForm.role === 'OFFICER' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <input type="text" placeholder="Department ID" required value={regForm.departmentId} onChange={e => setRegForm({...regForm, departmentId: e.target.value})} />
-                  <input type="text" placeholder="District" required value={regForm.district} onChange={e => setRegForm({...regForm, district: e.target.value})} />
-                </div>
-              )}
+          {/* Login Button */}
+          <button className="login-btn" type="submit">
+            Login
+          </button>
 
-              <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>Register Account</button>
-              <button type="button" className="btn-secondary" onClick={() => onRegisterToggle(false)}>Back to Login</button>
-            </div>
-          </form>
-        ) : (
-          <form onSubmit={handleLogin}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <input type="text" placeholder="Email / Phone" required value={loginEmail} onChange={e => setLoginEmail(e.target.value)} />
-              <input type="password" placeholder="Password" required value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
-              
-              <button type="submit" className="btn-primary" style={{ marginTop: '8px' }}>Log In</button>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-                <button type="button" style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }} onClick={() => onRegisterToggle(true)}>
-                  Create account
-                </button>
-                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-                  Demo: password
-                </span>
-              </div>
-            </div>
-          </form>
-        )}
-
-        <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '16px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-          Default test logins:<br />
-          Farmer: <strong>farmer@agrismart.com</strong> or <strong>9876543210</strong><br />
-          Officer: <strong>officer@agrismart.com</strong><br />
-          Admin: <strong>admin@agrismart.com</strong>
-        </div>
-      </div>
+          {/* Register */}
+          <div className="register-text">
+            Don't have an account?
+            <Link to="/register">Register</Link>
+          </div>
+        </form>
+      </motion.div>
     </div>
   );
 }
+
+export default Login;

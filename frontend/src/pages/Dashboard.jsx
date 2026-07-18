@@ -1,207 +1,350 @@
-import React from 'react';
-import { 
-  MapPin, 
-  Layers, 
-  AlertTriangle, 
-  CloudSun, 
-  Plus, 
-  Award, 
-  MessageSquare, 
-  Users 
-} from 'lucide-react';
+import React, { useEffect } from "react";
+import { useSelector, useDispatch } from "react-redux";
+import "../App.css";
+import "../styles/sanjay.css";
 
-export default function Dashboard({
-  user,
-  crops,
-  farms,
-  broadcastNotifications,
-  weather,
-  setActiveTab,
-  setProfileSubTab,
-  setFarmSubView,
-  setSelectedFarmId,
-  usersList,
-  demoMode
-}) {
-  if (!user) return null;
+import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 
-  if (user.role === 'FARMER') {
-    const activeCrops = crops.filter(c => c.status === 'ACTIVE');
-    const filteredAlerts = broadcastNotifications.filter(n => {
-      return n.targetRegion === 'All Regions' || 
-             (user.district && n.targetRegion.toLowerCase() === user.district.toLowerCase()) ||
-             (user.state && n.targetRegion.toLowerCase() === user.state.toLowerCase());
+import {
+  Tractor,
+  Sprout,
+  ClipboardList,
+  Landmark,
+  CloudSun,
+  Droplets,
+  Wind,
+  CloudRain,
+  CalendarDays,
+  TriangleAlert,
+  ListTodo,
+  Bot
+} from "lucide-react";
+
+export default function Dashboard() {
+  const user = useSelector((state) => state.agri.user);
+  const farms = useSelector((state) => state.agri.farms) || [];
+  const crops = useSelector((state) => state.agri.crops) || [];
+  const weather = useSelector((state) => state.agri.weather);
+  const broadcastNotifications = useSelector((state) => state.agri.broadcastNotifications) || [];
+
+  const activeCrops = crops.filter(c => c.status === 'ACTIVE');
+
+  // Filter regional alerts
+  const filteredAlerts = broadcastNotifications.filter(n => {
+    if (!user) return false;
+    return n.targetRegion === 'All Regions' || 
+           (user.district && n.targetRegion.toLowerCase() === user.district.toLowerCase()) ||
+           (user.state && n.targetRegion.toLowerCase() === user.state.toLowerCase());
+  });
+
+  // Calculate dynamic tasks based on active crops
+  const tasks = [];
+  if (activeCrops.length > 0) {
+    activeCrops.forEach((crop, index) => {
+      const farm = farms.find(f => f.farmId === crop.farmId);
+      const farmName = farm ? farm.farmName : "Field";
+      if (index === 0) {
+        tasks.push({ id: 1, title: `Irrigate ${crop.cropName} in ${farmName}`, time: "08:00 AM" });
+        tasks.push({ id: 2, title: `Check soil moisture for ${crop.cropName}`, time: "10:30 AM" });
+      } else if (index === 1) {
+        tasks.push({ id: 3, title: `Inspect ${crop.cropName} leaves for pests`, time: "02:00 PM" });
+      } else {
+        tasks.push({ id: index + 3, title: `Weed management in ${farmName}`, time: "04:30 PM" });
+      }
+    });
+  } else {
+    tasks.push({ id: 1, title: "Register a Farm Plot in Profile", time: "Anytime" });
+    tasks.push({ id: 2, title: "Start a crop cultivation log", time: "Anytime" });
+  }
+
+  // Calculate dynamic recommendations based on crops and weather
+  const recommendations = [];
+  let rainForecasted = false;
+  if (weather && weather.rainfall > 1.0) {
+    rainForecasted = true;
+  }
+
+  if (activeCrops.length > 0) {
+    activeCrops.forEach((crop, index) => {
+      const cropName = crop.cropName.toLowerCase();
+      if (cropName.includes('rice') || cropName.includes('paddy')) {
+        recommendations.push({
+          id: index + 1,
+          title: `${crop.cropName} NPK Ratio`,
+          message: "NPK 120:60:60 kg/ha recommended. Apply Nitrogen in splits."
+        });
+      } else if (cropName.includes('cotton')) {
+        recommendations.push({
+          id: index + 1,
+          title: `${crop.cropName} Pest Warning`,
+          message: "High risk of bollworm. Keep crop dry, apply neem oil if needed."
+        });
+      } else {
+        recommendations.push({
+          id: index + 1,
+          title: `${crop.cropName} Nutrition`,
+          message: "Apply general split NPK application during active vegetative stage."
+        });
+      }
     });
 
-    return (
-      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '30px', animation: 'fadeIn 0.3s ease' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div className="glass-card" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: '#f4faf6', padding: '16px', borderRadius: '12px' }}>
-              <MapPin size={28} color="var(--primary)" />
-              <div style={{ textAlign: 'left' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Total Farms</span>
-                <h3 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-main)', margin: 0 }}>{farms.length}</h3>
-              </div>
+    if (rainForecasted) {
+      recommendations.push({
+        id: 99,
+        title: "Irrigation Advisory",
+        message: "Rain is forecasted in your district. Postpone scheduled watering."
+      });
+    } else {
+      recommendations.push({
+        id: 99,
+        title: "Irrigation Schedule",
+        message: "No heavy rain forecast in 3 days. Irrigate plots as scheduled."
+      });
+    }
+  } else {
+    recommendations.push({
+      id: 1,
+      title: "Add your Farm",
+      message: "Please specify farm coordinates on the map to receive local weather alerts."
+    });
+  }
+
+  // Calculate upcoming events
+  const events = [];
+  if (activeCrops.length > 0) {
+    activeCrops.forEach((crop, index) => {
+      const dateObj = new Date(crop.expectedHarvestDate);
+      const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+      events.push({
+        id: index + 1,
+        title: `${crop.cropName} Harvest`,
+        month: months[dateObj.getMonth()],
+        day: String(dateObj.getDate()).padStart(2, '0'),
+        date: dateObj.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' })
+      });
+    });
+  } else {
+    events.push({
+      id: 1,
+      title: "Soil Testing Camp",
+      month: "JUL",
+      day: "10",
+      date: "10 July 2026"
+    });
+  }
+
+  // Get current date string
+  const currentDate = new Date().toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' });
+  const currentDay = new Date().toLocaleDateString([], { weekday: 'long' });
+
+  return (
+    <>
+      <Navbar />
+
+      <div className="dashboard">
+        {/* Welcome Section */}
+        <div className="dashboard-welcome-card">
+          <div>
+            <h1>
+              Welcome back,
+              <span> {user ? user.name : "Farmer"}</span>
+            </h1>
+            <p>Here's a quick overview of your farm activities today.</p>
+          </div>
+
+          <div className="dashboard-date-card">
+            <CalendarDays />
+            <div>
+              <h4>{currentDate}</h4>
+              <p>{currentDay}</p>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: '#f4faf6', padding: '16px', borderRadius: '12px' }}>
-              <Layers size={28} color="var(--primary)" />
-              <div style={{ textAlign: 'left' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Active Crops</span>
-                <h3 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-main)', margin: 0 }}>
-                  {activeCrops.length}
-                </h3>
-              </div>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="dashboard-summary-grid">
+          <div className="dashboard-summary-card">
+            <div className="dashboard-icon dashboard-green">
+              <Tractor />
+            </div>
+            <div>
+              <h4>Total Farms</h4>
+              <h2>{farms.length}</h2>
             </div>
           </div>
 
-          <div className="glass-card" style={{ borderLeft: '5px solid var(--primary)', textAlign: 'left' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <AlertTriangle size={18} /> Official Advisories & Warnings
-            </h3>
-            {filteredAlerts.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {filteredAlerts.map(alert => (
-                  <div key={alert.id} style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <span style={{ fontWeight: '700', fontSize: '14px', color: alert.type === 'Rain Alert' ? 'var(--danger)' : 'var(--primary)' }}>
-                        [{alert.type}] {alert.title}
-                      </span>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        {new Date(alert.timestamp).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: '13px', color: 'var(--text-main)', lineHeight: '1.4', margin: 0 }}>{alert.message}</p>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginTop: '6px', textAlign: 'right' }}>
-                      — Dispatcher: {alert.sender}
+          <div className="dashboard-summary-card">
+            <div className="dashboard-icon dashboard-lightgreen">
+              <Sprout />
+            </div>
+            <div>
+              <h4>Active Crops</h4>
+              <h2>{activeCrops.length}</h2>
+            </div>
+          </div>
+
+          <div className="dashboard-summary-card">
+            <div className="dashboard-icon dashboard-orange">
+              <ClipboardList />
+            </div>
+            <div>
+              <h4>Pending Tasks</h4>
+              <h2>{tasks.length}</h2>
+            </div>
+          </div>
+
+          <div className="dashboard-summary-card">
+            <div className="dashboard-icon dashboard-purple">
+              <Landmark />
+            </div>
+            <div>
+              <h4>Eligible Schemes</h4>
+              <h2>{user ? 3 : 0}</h2>
+            </div>
+          </div>
+        </div>
+
+        {/* Weather Card */}
+        <div className="dashboard-weather-card">
+          <div className="dashboard-weather-header">
+            <CloudSun />
+            <h2>Today's Weather Update</h2>
+          </div>
+
+          {weather ? (
+            <div className="dashboard-weather-content">
+              <div className="dashboard-weather-left">
+                <CloudSun className="dashboard-weather-icon" />
+                <h1>{Math.round(weather.temperature)}°C</h1>
+                <h3>{weather.description}</h3>
+              </div>
+
+              <div className="dashboard-weather-right">
+                <div>
+                  <Droplets />
+                  <span>Humidity</span>
+                  <strong>{weather.humidity}%</strong>
+                </div>
+                <div>
+                  <CloudRain />
+                  <span>Rainfall</span>
+                  <strong>{weather.rainfall || 0} mm</strong>
+                </div>
+                <div>
+                  <Wind />
+                  <span>Wind Speed</span>
+                  <strong>{weather.windSpeed || 4.5} km/h</strong>
+                </div>
+                <div>
+                  <CalendarDays />
+                  <span>Updated</span>
+                  <strong>{new Date(weather.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="dashboard-weather-content" style={{ justifyContent: "center", padding: "30px" }}>
+              <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>
+                No weather details synced. Add coordinates to your farm plot to view live weather parameters.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="dashboard-grid">
+          {/* Advisory Panel */}
+          <div className="dashboard-glass-panel">
+            <div className="dashboard-section-title">
+              <TriangleAlert />
+              <h2>Official Advisory & Warnings</h2>
+            </div>
+
+            <div className="dashboard-scroll-box">
+              {filteredAlerts.length > 0 ? (
+                filteredAlerts.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`dashboard-advisory ${item.type === 'Rain Alert' ? 'alert' : 'info'}`}
+                  >
+                    <h4>{item.title} ({item.targetRegion})</h4>
+                    <p>{item.message}</p>
+                    <span style={{ fontSize: '10px', color: 'gray', display: 'block', marginTop: '6px', textAlign: 'right' }}>
+                      — {item.sender} ({new Date(item.timestamp).toLocaleDateString()})
                     </span>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p style={{ color: 'var(--text-muted)', fontSize: '13.5px', margin: 0 }}>
-                No warnings in your region today. Weather forecast is stable; keep monitoring updates.
-              </p>
-            )}
+                ))
+              ) : (
+                <div className="dashboard-advisory info">
+                  <h4>No warnings in your region</h4>
+                  <p>Weather parameters are stable in your district today. Keep monitoring updates.</p>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="glass-card" style={{ textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0 }}>Current Weather Snapshot</h3>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                {weather ? `Last Sync: ${new Date(weather.recordedAt).toLocaleTimeString()}` : 'Syncing...'}
-              </span>
+          {/* Today's Tasks */}
+          <div className="dashboard-glass-panel">
+            <div className="dashboard-section-title">
+              <ListTodo />
+              <h2>Today's Tasks</h2>
             </div>
-            {weather ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <CloudSun size={48} color="var(--primary)" />
+
+            <div className="dashboard-scroll-box">
+              {tasks.map((task) => (
+                <div className="dashboard-task-item" key={task.id}>
                   <div>
-                    <h2 style={{ fontSize: '32px', fontWeight: '800', margin: 0 }}>{weather.temperature}°C</h2>
-                    <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: '600' }}>{weather.description}</span>
+                    <h4>{task.title}</h4>
+                    <p>{task.time}</p>
                   </div>
                 </div>
-                <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-                  <p style={{ margin: '0 0 4px 0' }}><strong>Humidity :</strong> {weather.humidity}%</p>
-                  <p style={{ margin: 0 }}><strong>Rainfall :</strong> {weather.rainfall || 0} mm</p>
+              ))}
+            </div>
+          </div>
+
+          {/* AI Recommendations */}
+          <div className="dashboard-glass-panel">
+            <div className="dashboard-section-title">
+              <Bot />
+              <h2>AI Recommendations</h2>
+            </div>
+
+            <div className="dashboard-scroll-box">
+              {recommendations.map((item) => (
+                <div className="dashboard-recommend-card" key={item.id}>
+                  <h4>{item.title}</h4>
+                  <p>{item.message}</p>
                 </div>
-              </div>
-            ) : (
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', padding: '10px 0', margin: 0 }}>
-                No weather data synced. Please add coordinates to your farm plot under Profile to fetch live weather details.
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '10px', margin: 0 }}>Quick Actions</h3>
-          
-          <button onClick={() => { setActiveTab('profile'); setProfileSubTab('farms'); setFarmSubView('add'); }} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center', padding: '16px' }}>
-            <Plus size={18} /> Register New Farm
-          </button>
-
-          <button 
-            onClick={() => {
-              if (farms.length === 0) {
-                alert('Please add a farm plot first.');
-              } else {
-                setSelectedFarmId(farms[0].farmId);
-                setActiveTab('profile');
-                setProfileSubTab('farms');
-                setFarmSubView('view');
-              }
-            }} 
-            className="btn-secondary" 
-            style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center', padding: '16px' }}
-          >
-            <Layers size={18} /> Add Crop to Cultivate
-          </button>
-
-          <button onClick={() => setActiveTab('schemes')} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center', padding: '16px' }}>
-            <Award size={18} /> Scheme Recommendations
-          </button>
-
-          <button onClick={() => setActiveTab('chatbot')} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center', padding: '16px' }}>
-            <MessageSquare size={18} /> Chat with AI Bot
-          </button>
-        </div>
-      </div>
-    );
-  } else {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', animation: 'fadeIn 0.3s ease' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
-          <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', textAlign: 'left' }}>
-            <Users size={32} color="var(--primary)" />
-            <div>
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Registered Farmers</span>
-              <h2 style={{ fontSize: '28px', fontWeight: '800', margin: '4px 0 0 0' }}>{usersList.length || 3}</h2>
+              ))}
             </div>
           </div>
-          <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', textAlign: 'left' }}>
-            <MapPin size={32} color="var(--primary)" />
-            <div>
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Total Monitor Area</span>
-              <h2 style={{ fontSize: '28px', fontWeight: '800', margin: '4px 0 0 0' }}>15 Acres</h2>
+
+          {/* Upcoming Events */}
+          <div className="dashboard-glass-panel">
+            <div className="dashboard-section-title">
+              <CalendarDays />
+              <h2>Upcoming Events</h2>
+            </div>
+
+            <div className="dashboard-scroll-box">
+              {events.map((event) => (
+                <div className="dashboard-event-card" key={event.id}>
+                  <div className="dashboard-event-date">
+                    <span className="dashboard-event-month">{event.month}</span>
+                    <span className="dashboard-event-day">{event.day}</span>
+                  </div>
+                  <div className="dashboard-event-details">
+                    <h4>{event.title}</h4>
+                    <p>{event.date}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-
-        <div className="glass-card" style={{ textAlign: 'left' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>Registered User Accounts</h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
-                  <th style={{ padding: '12px' }}>ID</th>
-                  <th style={{ padding: '12px' }}>Name</th>
-                  <th style={{ padding: '12px' }}>Email</th>
-                  <th style={{ padding: '12px' }}>Role</th>
-                  <th style={{ padding: '12px' }}>Location</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(usersList.length > 0 ? usersList : [
-                  { userId: 1, name: 'Siddharth Sharma', email: 'admin@agrismart.com', role: 'ADMIN', district: 'Chandigarh', state: 'Punjab' },
-                  { userId: 101, name: 'Siddharth', email: 'farmer@agrismart.com', role: 'FARMER', district: 'Coimbatore', state: 'Tamil Nadu' },
-                  { userId: 102, name: 'Officer Priya', email: 'officer@agrismart.com', role: 'OFFICER', district: 'Ambala', state: 'Haryana' }
-                ]).map((u, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '12px' }}>#{u.userId}</td>
-                    <td style={{ padding: '12px', fontWeight: '700' }}>{u.name}</td>
-                    <td style={{ padding: '12px' }}>{u.email}</td>
-                    <td style={{ padding: '12px' }}>
-                      <span className={`badge badge-${u.role.toLowerCase()}`}>{u.role}</span>
-                    </td>
-                    <td style={{ padding: '12px' }}>{u.district || 'N/A'}, {u.state || 'N/A'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
-    );
-  }
+
+      <Footer />
+    </>
+  );
 }

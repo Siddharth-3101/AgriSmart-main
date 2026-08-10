@@ -3,7 +3,6 @@ package com.agrismart.analytics.controller;
 import com.agrismart.analytics.service.AnalyticsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -15,12 +14,13 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/analytics")
-@RequiredArgsConstructor
 @Tag(name = "Analytics & Reports", description = "Endpoints for generating role-based agricultural dashboard statistics")
 public class AnalyticsController {
 
     private final AnalyticsService analyticsService;
-
+    public AnalyticsController(AnalyticsService analyticsService) {
+        this.analyticsService= analyticsService;
+    }
     @GetMapping("/farmer")
     @PreAuthorize("hasRole('FARMER')")
     @Operation(summary = "Get farmer analytics", description = "Retrieve farm and crop totals, crop yield history, and advice logs for the current farmer.")

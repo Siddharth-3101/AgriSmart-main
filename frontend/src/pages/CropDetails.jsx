@@ -332,6 +332,22 @@ export default function CropDetails() {
     })()
   } : null;
 
+  const updateLocalDemoCrops = (updatedCrop) => {
+    try {
+      const existingStr = localStorage.getItem('demo_crops');
+      let list = existingStr ? JSON.parse(existingStr) : [...crops];
+      const idx = list.findIndex((c) => c.cropId === updatedCrop.cropId);
+      if (idx !== -1) {
+        list[idx] = updatedCrop;
+      } else {
+        list.push(updatedCrop);
+      }
+      localStorage.setItem('demo_crops', JSON.stringify(list));
+    } catch (e) {
+      console.error("Failed to persist demo crop state", e);
+    }
+  };
+
   const handleHarvestSubmit = async (e) => {
     e.preventDefault();
     if (!harvestYield || isNaN(harvestYield) || Number(harvestYield) <= 0) {
@@ -363,6 +379,7 @@ export default function CropDetails() {
 
         if (res.ok) {
           const updated = await res.json();
+          updateLocalDemoCrops(updated);
           dispatch(updateCropAction(updated));
           toast.success("Crop harvested successfully in database!");
           setShowHarvestModal(false);
@@ -377,7 +394,9 @@ export default function CropDetails() {
       console.warn("Crop service offline, updating locally.", err);
     }
 
-    dispatch(updateCropAction({ ...crop, status: "HARVESTED", yield: parseFloat(harvestYield), description: "Crop successfully harvested." }));
+    const updatedCropObj = { ...crop, status: "HARVESTED", yield: parseFloat(harvestYield), description: "Crop successfully harvested." };
+    updateLocalDemoCrops(updatedCropObj);
+    dispatch(updateCropAction(updatedCropObj));
     toast.success("Crop harvested locally (Demo Mode)!");
     setShowHarvestModal(false);
     navigate("/crops");
@@ -410,6 +429,7 @@ export default function CropDetails() {
 
         if (res.ok) {
           const updated = await res.json();
+          updateLocalDemoCrops(updated);
           dispatch(updateCropAction(updated));
           toast.success("Crop status updated to FAILED in database.");
           navigate("/crops");
@@ -420,7 +440,9 @@ export default function CropDetails() {
       console.warn("Crop service offline, failing locally.", err);
     }
 
-    dispatch(updateCropAction({ ...crop, status: "FAILED", yield: 0.0, description: "Crop growth failed due to environment factors." }));
+    const updatedCropObj = { ...crop, status: "FAILED", yield: 0.0, description: "Crop growth failed due to environment factors." };
+    updateLocalDemoCrops(updatedCropObj);
+    dispatch(updateCropAction(updatedCropObj));
     toast.success("Crop marked failed locally (Demo Mode)!");
     navigate("/crops");
   };

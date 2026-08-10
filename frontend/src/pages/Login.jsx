@@ -37,11 +37,10 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
 
     try {
       // 1. Try real backend login
-      const res = await fetch("http://localhost:8081/api/auth/login", {
+      const res = await fetch("http://localhost:8081/api/users/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: formData.email, password: formData.password }),
@@ -53,7 +52,6 @@ function Login() {
         dispatch(setUser(data.user));
         dispatch(setApiOnline(true));
         dispatch(setDemoMode(false));
-        toast.success(`Welcome back, ${data.user.name}!`);
         
         // Redirect based on role
         if (data.user.role === "OFFICER") {
@@ -73,6 +71,46 @@ function Login() {
       const email = formData.email;
       const password = formData.password;
 
+      // Check registered demo users first
+      let registeredDemoUser = null;
+      try {
+        const savedUsersStr = localStorage.getItem('demo_users');
+        if (savedUsersStr) {
+          const list = JSON.parse(savedUsersStr);
+          registeredDemoUser = list.find(u => (u.email === email || u.phone === email) && u.password === password);
+        }
+      } catch (e) {}
+
+      const defaultFarms = [
+        { farmId: 1, farmName: "Green Valley Farm", location: "Coimbatore", area: 4.0, soilType: "Black Soil", waterSource: "Borewell", latitude: 11.0168, longitude: 76.9558 },
+        { farmId: 2, farmName: "South Farm", location: "Pollachi", area: 2.0, soilType: "Red Soil", waterSource: "Canal", latitude: 10.659, longitude: 77.008 }
+      ];
+      const defaultCrops = [
+        { cropId: 1, cropName: "Rice", farmId: 1, plantedDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], duration: 120, status: "ACTIVE", expectedHarvestDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], description: "Paddy crop growing healthy." },
+        { cropId: 2, cropName: "Cotton", farmId: 2, plantedDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], duration: 150, status: "ACTIVE", expectedHarvestDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], description: "Vegetative stage progress." }
+      ];
+
+      const savedFarmsStr = localStorage.getItem('demo_farms');
+      const savedCropsStr = localStorage.getItem('demo_crops');
+
+      if (registeredDemoUser) {
+        dispatch(setToken(`mock-jwt-token-${registeredDemoUser.role.toLowerCase()}`));
+        dispatch(setDemoMode(true));
+        dispatch(setApiOnline(false));
+        dispatch(setUser(registeredDemoUser));
+        localStorage.setItem('demo_user_profile', JSON.stringify(registeredDemoUser));
+
+        dispatch(setFarms(savedFarmsStr ? JSON.parse(savedFarmsStr) : defaultFarms));
+        dispatch(setCrops(savedCropsStr ? JSON.parse(savedCropsStr) : defaultCrops));
+
+        if (registeredDemoUser.role === "OFFICER" || registeredDemoUser.role === "ADMIN") {
+          navigate("/officer/dashboard");
+        } else {
+          navigate("/dashboard");
+        }
+        return;
+      }
+
       if ((email === "farmer@agrismart.com" || email === "9876543210") && password === "password") {
         dispatch(setToken("mock-jwt-token-farmer"));
         dispatch(setDemoMode(true));
@@ -89,16 +127,10 @@ function Login() {
           createdAt: "2026-01-10T10:30:00",
         };
         dispatch(setUser(mockUser));
-        dispatch(setFarms([
-          { farmId: 1, farmName: "Green Valley Farm", location: "Coimbatore", area: 4.0, soilType: "Black Soil", waterSource: "Borewell", latitude: 11.0168, longitude: 76.9558 },
-          { farmId: 2, farmName: "South Farm", location: "Pollachi", area: 2.0, soilType: "Red Soil", waterSource: "Canal", latitude: 10.659, longitude: 77.008 }
-        ]));
-        dispatch(setCrops([
-          { cropId: 1, cropName: "Rice", farmId: 1, plantedDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], duration: 120, status: "ACTIVE", expectedHarvestDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], description: "Paddy crop growing healthy." },
-          { cropId: 2, cropName: "Cotton", farmId: 2, plantedDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], duration: 150, status: "ACTIVE", expectedHarvestDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], description: "Vegetative stage progress." }
-        ]));
+        localStorage.setItem('demo_user_profile', JSON.stringify(mockUser));
+        dispatch(setFarms(savedFarmsStr ? JSON.parse(savedFarmsStr) : defaultFarms));
+        dispatch(setCrops(savedCropsStr ? JSON.parse(savedCropsStr) : defaultCrops));
 
-        toast.success("Welcome back, Siddharth (Demo Mode)!");
         navigate("/dashboard");
       } else if (email === "officer@agrismart.com" && password === "password") {
         dispatch(setToken("mock-jwt-token-officer"));
@@ -116,7 +148,6 @@ function Login() {
           createdAt: new Date().toISOString(),
         }));
 
-        toast.success("Welcome back, Officer Priya (Demo Mode)!");
         navigate("/officer/dashboard");
       } else if (email === "admin@agrismart.com" && password === "password") {
         dispatch(setToken("mock-jwt-token-admin"));
@@ -134,10 +165,9 @@ function Login() {
           createdAt: new Date().toISOString(),
         }));
 
-        toast.success("Welcome back, Siddharth Sharma (Demo Mode)!");
         navigate("/officer/dashboard");
       } else {
-        toast.error("Invalid email or password. Hint: Use farmer@agrismart.com / password");
+        toast.error("Invalid email or password.");
       }
     }
   };

@@ -108,12 +108,7 @@ export default function AddFarm() {
           localStorage.setItem(`farm_coords_${createdFarm.farmId}`, JSON.stringify(boundary.coordinates));
           dispatch(addFarmAction(createdFarm));
           toast.success("Farm registered successfully in database!");
-          
-          if (farms.length === 0) {
-            navigate("/dashboard");
-          } else {
-            navigate("/farm-management");
-          }
+          navigate("/farm-management");
           return;
         } else {
           const err = await res.json();
@@ -144,12 +139,7 @@ export default function AddFarm() {
     
     dispatch(addFarmAction(mockFarm));
     toast.success("Farm registered locally (Demo Mode)!");
-    
-    if (farms.length === 0) {
-      navigate("/dashboard");
-    } else {
-      navigate("/farm-management");
-    }
+    navigate("/farm-management");
   };
 
   return (

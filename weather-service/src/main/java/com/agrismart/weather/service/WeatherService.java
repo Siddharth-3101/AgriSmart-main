@@ -7,7 +7,6 @@ import com.agrismart.weather.dto.UserResponse;
 import com.agrismart.weather.entity.WeatherHistory;
 import com.agrismart.weather.exception.BadRequestException;
 import com.agrismart.weather.repository.WeatherHistoryRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
@@ -23,12 +22,14 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 public class WeatherService {
 
     private final WeatherHistoryRepository weatherHistoryRepository;
     private final RestClient.Builder restClientBuilder;
-
+    public WeatherService(WeatherHistoryRepository weatherHistoryRepository,RestClient.Builder restClientBuilder) {
+    	this.restClientBuilder=restClientBuilder;
+    	this.weatherHistoryRepository=weatherHistoryRepository;
+    }
     @Value("${twilio.account_sid:}")
     private String twilioAccountSid;
 

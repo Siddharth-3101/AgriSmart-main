@@ -1,3 +1,5 @@
+@import "./officer_theme.css";
+
 /*==================================================
                 GLOBAL
 ==================================================*/
@@ -426,18 +428,36 @@
 
 }
 
-.current-weather-card{
+.current-weather-card,
+.chart-card,
+.weather-card,
+.advisory-card,
+.village-card,
+.updates-card,
+.stats-card {
+    background: #ffffff !important;
+    border-radius: 25px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.04) !important;
+    color: #0f172a !important;
+    padding: 25px !important;
+}
 
-    background:rgba(255,255,255,.10);
+.weather-header h2,
+.current-weather-card h1,
+.current-weather-card h2,
+.chart-header h3,
+.card-header h2,
+.stats-content h2 {
+    color: #0f172a !important;
+}
 
-    backdrop-filter:blur(20px);
-
-    border:1px solid rgba(255,255,255,.12);
-
-    border-radius:25px;
-
-    padding:30px;
-
+.weather-header p,
+.current-weather-card h3,
+.stats-content h4,
+.chart-header span {
+    color: #475569 !important;
+    font-weight: 600 !important;
 }
 
 .weather-header{

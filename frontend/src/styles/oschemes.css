@@ -1,3 +1,5 @@
+@import "./officer_theme.css";
+
 /*==================================================
                 GLOBAL
 ==================================================*/
@@ -306,140 +308,170 @@
             SCHEME LIST
 ==================================================*/
 
-.scheme-list-card{
-    background:rgba(255,255,255,.10);
-    backdrop-filter:blur(20px);
-
-    border:1px solid rgba(255,255,255,.12);
-
-    border-radius:25px;
-
-    padding:25px;
+.scheme-list-card,
+.scheme-details-card,
+.stats-card {
+    background: #ffffff !important;
+    border-radius: 25px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+    padding: 25px !important;
 }
 
-.section-title h2{
-    color:white;
-    margin-bottom:20px;
+.section-title h2,
+.details-header h2 {
+    color: #0f172a !important;
+    margin-bottom: 20px !important;
 }
 
-.scheme-scroll{
-    height:650px;
-    overflow-y:auto;
-
-    display:flex;
-    flex-direction:column;
-    gap:15px;
-
-    padding-right:5px;
+.scheme-scroll {
+    height: 650px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding-right: 5px;
 }
 
-.scheme-item{
-    background:rgba(255,255,255,.08);
-
-    border-radius:18px;
-
-    padding:18px;
-
-    cursor:pointer;
-
-    transition:.3s;
+.scheme-item {
+    background: #f8fafc !important;
+    border-radius: 18px !important;
+    border: 1px solid #e2e8f0 !important;
+    padding: 18px !important;
+    cursor: pointer !important;
+    transition: .3s !important;
 }
 
-.scheme-item:hover{
-    background:rgba(255,255,255,.15);
+.scheme-item:hover {
+    background: #f1f5f9 !important;
 }
 
-.active-scheme{
-    border:2px solid #3b82f6;
+.active-scheme {
+    border: 2px solid #2563eb !important;
+    background: #eff6ff !important;
 }
 
-.scheme-item h3{
-    color:white;
-    margin-bottom:8px;
+.scheme-item h3 {
+    color: #0f172a !important;
+    margin-bottom: 8px !important;
+    font-weight: 700 !important;
 }
 
-.scheme-item p{
-    color:#bfdbfe;
-    margin-bottom:10px;
+.scheme-item p {
+    color: #2563eb !important;
+    font-weight: 600 !important;
+    margin-bottom: 10px !important;
 }
 
-.scheme-footer{
-    display:flex;
-    justify-content:space-between;
-
-    color:#dbeafe;
-    font-size:13px;
+.scheme-footer {
+    display: flex;
+    justify-content: space-between;
+    color: #475569 !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
 }
 
-/*==================================================
-            SCHEME DETAILS
-==================================================*/
-
-.scheme-details-card{
-    background:rgba(255,255,255,.10);
-    backdrop-filter:blur(20px);
-
-    border:1px solid rgba(255,255,255,.12);
-
-    border-radius:25px;
-
-    padding:28px;
+.scheme-details-card {
+    background: #ffffff !important;
+    border-radius: 25px !important;
+    border: 1px solid #e2e8f0 !important;
+    padding: 28px !important;
 }
 
-.details-header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-
-    margin-bottom:18px;
+.details-header span {
+    padding: 8px 16px;
+    border-radius: 20px;
+    background: #2563eb;
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
 }
 
-.details-header h2{
-    color:white;
+.scheme-description {
+    color: #475569 !important;
+    line-height: 1.8 !important;
+    font-size: 14.5px !important;
+    margin-bottom: 25px !important;
 }
 
-.details-header span{
-    padding:8px 16px;
-
-    border-radius:20px;
-
-    background:#2563eb;
-
-    color:white;
-    font-size:13px;
+.details-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
 }
 
-.scheme-description{
-    color:#dbeafe;
-    line-height:1.8;
-
-    margin-bottom:25px;
+.details-grid div {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    padding: 18px !important;
+    border-radius: 16px !important;
 }
 
-.details-grid{
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:18px;
+.details-grid label {
+    display: block;
+    color: #64748b !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    margin-bottom: 8px !important;
 }
 
-.details-grid div{
-    background:rgba(255,255,255,.06);
-
-    padding:18px;
-
-    border-radius:16px;
+.details-grid h4 {
+    color: #0f172a !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
 }
 
-.details-grid label{
-    display:block;
-    color:#bfdbfe;
-    font-size:13px;
-    margin-bottom:8px;
+/* Notify Farmers Section & Checkboxes */
+.notification-card,
+.notify-card,
+.notify-farmers-card,
+.farmer-select-box,
+.quick-highlights-card,
+.highlights-card {
+    background: #ffffff !important;
+    border-radius: 24px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+    padding: 25px !important;
+    color: #0f172a !important;
 }
 
-.details-grid h4{
-    color:white;
-    font-size:16px;
+.notification-card h2,
+.notification-card h4,
+.farmer-selection h4,
+.message-box h4,
+.notify-card h3,
+.notify-card label,
+.farmer-select-box label,
+.checkbox-item label,
+.checkbox-label,
+.highlights-card h3,
+.highlights-card h4 {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+}
+
+.checkbox-item span {
+    color: #0f172a !important;
+    font-weight: 600 !important;
+}
+
+.message-box textarea,
+.notify-card textarea,
+.message-textarea {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 16px !important;
+    padding: 15px !important;
+    font-size: 14px !important;
+}
+
+.message-box textarea::placeholder,
+.notify-card textarea::placeholder,
+.message-textarea::placeholder {
+    color: #64748b !important;
+    opacity: 1 !important;
 }/*==================================================
         APPLICATION FILTER BUTTONS
 ==================================================*/

@@ -2,13 +2,7 @@ package com.agrismart.user.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.*;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class ProfileRequest {
 
     @NotBlank(message = "Name is required")
@@ -23,4 +17,56 @@ public class ProfileRequest {
     
     // Optional password update
     private String password;
+
+    public ProfileRequest() {
+    }
+
+    public ProfileRequest(String name, String phone, String district, String state, String password) {
+        this.name = name;
+        this.phone = phone;
+        this.district = district;
+        this.state = state;
+        this.password = password;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getDistrict() {
+        return district;
+    }
+
+    public void setDistrict(String district) {
+        this.district = district;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
 }
+

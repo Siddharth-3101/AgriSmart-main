@@ -39,7 +39,7 @@ const Navbar = ({ transparent = false }) => {
     const handleLogoutClick = (e) => {
         e.preventDefault();
         dispatch(logout());
-        navigate("/login");
+        navigate("/");
     };
 
     const navbarClass = transparent

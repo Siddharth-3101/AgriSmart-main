@@ -75,23 +75,27 @@ function LeafletViewer({
 
 }){
 
-    const polygon = useMemo(()=>{
-
-        if(
-
-            !farm ||
-
-            !farm.coordinates ||
-
-            farm.coordinates.length < 3
-
-        )
-
-            return [];
-
-        return farm.coordinates;
-
-    },[farm]);
+    const polygon = useMemo(() => {
+        if (!farm) return [];
+        if (farm.coordinates && farm.coordinates.length >= 3) {
+            return farm.coordinates;
+        }
+        if (farm.location) {
+            if (farm.location.includes(" | ")) {
+                try {
+                    const jsonPart = farm.location.split(" | ").slice(1).join(" | ").trim();
+                    const parsed = JSON.parse(jsonPart);
+                    if (Array.isArray(parsed) && parsed.length >= 3) return parsed;
+                } catch (e) {}
+            } else if (farm.location.trim().startsWith("[")) {
+                try {
+                    const parsed = JSON.parse(farm.location);
+                    if (Array.isArray(parsed) && parsed.length >= 3) return parsed;
+                } catch (e) {}
+            }
+        }
+        return [];
+    }, [farm]);
 
     const center = useMemo(()=>{
 
@@ -131,7 +135,7 @@ function LeafletViewer({
 
                 <LayersControl position="topright">
 
-                    <BaseLayer checked name="Satellite">
+                    <BaseLayer checked name="Satellite + Place Labels">
 
                         <TileLayer
 
@@ -140,10 +144,17 @@ function LeafletViewer({
                             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
 
                         />
+                        <TileLayer
+
+                            attribution="Esri Boundaries & Places"
+
+                            url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+
+                        />
 
                     </BaseLayer>
 
-                    <BaseLayer name="Street">
+                    <BaseLayer name="Street Map (OSM)">
 
                         <TileLayer
 

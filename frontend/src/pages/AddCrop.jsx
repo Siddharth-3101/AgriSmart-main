@@ -23,6 +23,7 @@ import * as turf from "@turf/turf";
 
 import "../styles/sid.css";
 import { addCropAction } from "../main";
+import LeafletMap from "../components/LeafletMap";
 
 // Fix Leaflet marker icons
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -61,9 +62,12 @@ function CropMapClickHandler({ farmPolygon, cropCoordinates, setCropCoordinates,
         farmPolygon.map(p => [p[1], p[0]]).concat([[farmPolygon[0][1], farmPolygon[0][0]]])
       ]);
 
-      // 2. Check if clicked point is inside the farm polygon
+      // 2. Add 5m buffer tolerance so points near or on the boundary edge are accepted smoothly
+      const bufferedFarm = turf.buffer(farmGeoJson, 0.005, { units: "kilometers" });
+
+      // 3. Check if clicked point is inside the buffered farm polygon
       const clickPoint = turf.point([e.latlng.lng, e.latlng.lat]);
-      const isInside = turf.booleanPointInPolygon(clickPoint, farmGeoJson);
+      const isInside = turf.booleanPointInPolygon(clickPoint, bufferedFarm);
 
       if (!isInside) {
         toast.warning("Click is outside your farm boundary! Crop area must be located entirely within your own farm plot.");
@@ -92,6 +96,7 @@ function AddCrop() {
   const dispatch = useDispatch();
 
   const farms = useSelector((state) => state.agri.farms) || [];
+  const crops = useSelector((state) => state.agri.crops) || [];
   const token = useSelector((state) => state.agri.token);
   const demoMode = useSelector((state) => state.agri.demoMode);
 
@@ -151,6 +156,44 @@ function AddCrop() {
 
     return [];
   }, [selectedFarm]);
+
+  // Parse crop coordinates from description or localStorage
+  const parseCropCoordinates = (c) => {
+    if (c.description && c.description.includes("Coordinates: ")) {
+      try {
+        const coordsStr = c.description.split("Coordinates: ")[1];
+        const coords = JSON.parse(coordsStr);
+        if (Array.isArray(coords) && coords.length >= 3) {
+          return coords;
+        }
+      } catch (e) {
+        console.error("Failed to parse crop coordinates from description", e);
+      }
+    }
+    const saved = localStorage.getItem(`crop_coords_${c.cropId}`);
+    if (saved) {
+      try {
+        const coords = JSON.parse(saved);
+        if (Array.isArray(coords) && coords.length >= 3) {
+          return coords;
+        }
+      } catch (e) {}
+    }
+    return null;
+  };
+
+  // Find other active crops on this farm to display as red polygons
+  const activeCropPolygons = useMemo(() => {
+    if (!selectedFarmId) return [];
+    return crops
+      .filter((c) => Number(c.farmId) === Number(selectedFarmId) && c.status === "ACTIVE")
+      .map((c) => ({
+        cropId: c.cropId,
+        cropName: c.cropName,
+        coordinates: parseCropCoordinates(c)
+      }))
+      .filter((ap) => ap.coordinates !== null);
+  }, [crops, selectedFarmId]);
 
   // Clean farm name/village display helper
   const cleanFarmName = (farm) => {
@@ -214,6 +257,29 @@ function AddCrop() {
       return;
     }
 
+    if (useMap && cropCoordinates.length >= 3) {
+      const newCropPoly = turf.polygon([
+        cropCoordinates.map(p => [p[1], p[0]]).concat([[cropCoordinates[0][1], cropCoordinates[0][0]]])
+      ]);
+
+      for (const existing of activeCropPolygons) {
+        if (existing.coordinates && existing.coordinates.length >= 3) {
+          try {
+            const existingPoly = turf.polygon([
+              existing.coordinates.map(p => [p[1], p[0]]).concat([[existing.coordinates[0][1], existing.coordinates[0][0]]])
+            ]);
+            const intersection = turf.intersect(turf.featureCollection([newCropPoly, existingPoly]));
+            if (intersection) {
+              toast.error(`Overlap detected! Part of your selection lies inside the existing active crop area: "${existing.cropName}". Please select another area of the farm.`);
+              return;
+            }
+          } catch (err) {
+            console.error("Turf intersection validation error", err);
+          }
+        }
+      }
+    }
+
     const durationDays = Number(duration) || 120;
     const planted = new Date(plantingDate);
     const expectedHarvest = new Date(
@@ -253,6 +319,12 @@ function AddCrop() {
           const createdCrop = await res.json();
           // Store crop coordinates locally for matching references
           localStorage.setItem(`crop_coords_${createdCrop.cropId}`, JSON.stringify(cropCoordinates));
+          try {
+            const existingStr = localStorage.getItem('demo_crops');
+            let list = existingStr ? JSON.parse(existingStr) : [...crops];
+            list.push(createdCrop);
+            localStorage.setItem('demo_crops', JSON.stringify(list));
+          } catch (e) {}
           dispatch(addCropAction(createdCrop));
           toast.success("Crop registered successfully inside farm boundaries!");
           navigate("/crops");
@@ -274,6 +346,12 @@ function AddCrop() {
       yield: null,
     };
     localStorage.setItem(`crop_coords_${mockCropId}`, JSON.stringify(cropCoordinates));
+    try {
+      const existingStr = localStorage.getItem('demo_crops');
+      let list = existingStr ? JSON.parse(existingStr) : [...crops];
+      list.push(mockCrop);
+      localStorage.setItem('demo_crops', JSON.stringify(list));
+    } catch (e) {}
     dispatch(addCropAction(mockCrop));
     toast.success("Crop registered locally (Demo Mode)!");
     navigate("/crops");
@@ -396,119 +474,22 @@ function AddCrop() {
 
               {useMap && (
                 <div style={{ marginTop: "15px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                    <span style={{ fontSize: "13px", color: "gray" }}>
-                      Click inside the farm boundaries (orange polygon) to define the crop area (green polygon).
+                  <div style={{ marginBottom: "8px" }}>
+                    <span style={{ fontSize: "13px", color: "#475569" }}>
+                      Drag the central ✥ handle to reposition the crop plot or drag the corner handles to reshape the crop area.
                     </span>
-                    {cropCoordinates.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => { setCropCoordinates([]); setLandUsed(1.0); }}
-                        style={{ display: "flex", alignItems: "center", gap: "4px", background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}
-                      >
-                        <Trash2 size={14} /> Clear Map
-                      </button>
-                    )}
                   </div>
 
-                  <div style={{ border: "1px solid #cbdcd0", borderRadius: "12px", overflow: "hidden" }}>
-                    {farmCoordinates.length >= 3 ? (
-                      <MapContainer
-                        center={farmCoordinates[0]}
-                        zoom={17}
-                        scrollWheelZoom={true}
-                        style={{ width: "100%", height: "400px" }}
-                      >
-                        <TileLayer
-                          attribution="Esri"
-                          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                        />
-                        <FitBoundsToFarm farmPolygon={farmCoordinates} />
-
-                        {/* Render Farm Limits Guide */}
-                        <Polygon
-                          positions={farmCoordinates}
-                          pathOptions={{
-                            color: "#d97706",
-                            dashArray: "6,6",
-                            fillColor: "#fef3c7",
-                            fillOpacity: 0.1,
-                            weight: 3
-                          }}
-                        />
-
-                        {/* Render Crop Area Markers */}
-                        {cropCoordinates.map((point, index) => (
-                          <Marker
-                            key={index}
-                            position={point}
-                            draggable={true}
-                            eventHandlers={{
-                              dragend: (e) => {
-                                const latLng = e.target.getLatLng();
-                                // Validate if inside farm
-                                if (farmCoordinates && farmCoordinates.length >= 3) {
-                                  const farmGeoJson = turf.polygon([
-                                    farmCoordinates.map(p => [p[1], p[0]]).concat([[farmCoordinates[0][1], farmCoordinates[0][0]]])
-                                  ]);
-                                  const dragPoint = turf.point([latLng.lng, latLng.lat]);
-                                  const isInside = turf.booleanPointInPolygon(dragPoint, farmGeoJson);
-                                  if (!isInside) {
-                                    toast.warning("Cannot drag marker outside the farm boundary!");
-                                    // Reset marker position
-                                    e.target.setLatLng(point);
-                                    return;
-                                  }
-                                }
-                                
-                                setCropCoordinates((prev) => {
-                                  const newCoords = [...prev];
-                                  newCoords[index] = [latLng.lat, latLng.lng];
-                                  
-                                  // Recalculate area
-                                  if (newCoords.length >= 3) {
-                                    const cropGeoJson = turf.polygon([
-                                      newCoords.map(p => [p[1], p[0]]).concat([[newCoords[0][1], newCoords[0][0]]])
-                                    ]);
-                                    const sqm = turf.area(cropGeoJson);
-                                    const acres = sqm * 0.000247105;
-                                    setLandUsed(Number(acres.toFixed(2)));
-                                  }
-                                  return newCoords;
-                                });
-                              }
-                            }}
-                          />
-                        ))}
-
-                        {/* Render Crop Area Polygon */}
-                        {cropCoordinates.length >= 3 && (
-                          <Polygon
-                            positions={cropCoordinates}
-                            pathOptions={{
-                              color: "#16a34a",
-                              fillColor: "#4ca35a",
-                              fillOpacity: 0.4,
-                              weight: 3
-                            }}
-                          />
-                        )}
-
-                        <CropMapClickHandler
-                          farmPolygon={farmCoordinates}
-                          cropCoordinates={cropCoordinates}
-                          setCropCoordinates={setCropCoordinates}
-                          setLandUsed={setLandUsed}
-                        />
-                      </MapContainer>
-                    ) : (
-                      <div className="leafletPlaceholder">
-                        <MapPinned size={50} />
-                        <h3>Missing Farm Limits</h3>
-                        <p>This farm plot doesn't have a registered boundary to draw inside.</p>
-                      </div>
-                    )}
-                  </div>
+                  <LeafletMap
+                    farmCoordinates={farmCoordinates}
+                    activeCropPolygons={activeCropPolygons}
+                    onPolygonChange={({ coordinates, areaAcres }) => {
+                      if (coordinates && coordinates.length >= 3) {
+                        setCropCoordinates(coordinates);
+                        setLandUsed(areaAcres > 0 ? areaAcres : 1.0);
+                      }
+                    }}
+                  />
                 </div>
               )}
 

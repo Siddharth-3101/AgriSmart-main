@@ -4,15 +4,8 @@ import com.agrismart.crop.entity.CropStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import lombok.*;
-
 import java.time.LocalDate;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class CropRequest {
 
     @NotBlank(message = "Crop name is required")
@@ -38,4 +31,92 @@ public class CropRequest {
     private Long farmId;
 
     private Double yield;
+
+    public CropRequest() {
+    }
+
+    public CropRequest(String cropName, Integer duration, String description, CropStatus status, String season, LocalDate plantedDate, LocalDate expectedHarvestDate, Long farmId, Double yield) {
+        this.cropName = cropName;
+        this.duration = duration;
+        this.description = description;
+        this.status = status;
+        this.season = season;
+        this.plantedDate = plantedDate;
+        this.expectedHarvestDate = expectedHarvestDate;
+        this.farmId = farmId;
+        this.yield = yield;
+    }
+
+    public String getCropName() {
+        return cropName;
+    }
+
+    public void setCropName(String cropName) {
+        this.cropName = cropName;
+    }
+
+    public Integer getDuration() {
+        return duration;
+    }
+
+    public void setDuration(Integer duration) {
+        this.duration = duration;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public CropStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(CropStatus status) {
+        this.status = status;
+    }
+
+    public String getSeason() {
+        return season;
+    }
+
+    public void setSeason(String season) {
+        this.season = season;
+    }
+
+    public LocalDate getPlantedDate() {
+        return plantedDate;
+    }
+
+    public void setPlantedDate(LocalDate plantedDate) {
+        this.plantedDate = plantedDate;
+    }
+
+    public LocalDate getExpectedHarvestDate() {
+        return expectedHarvestDate;
+    }
+
+    public void setExpectedHarvestDate(LocalDate expectedHarvestDate) {
+        this.expectedHarvestDate = expectedHarvestDate;
+    }
+
+    public Long getFarmId() {
+        return farmId;
+    }
+
+    public void setFarmId(Long farmId) {
+        this.farmId = farmId;
+    }
+
+    public Double getYield() {
+        return yield;
+    }
+
+    public void setYield(Double yield) {
+        this.yield = yield;
+    }
 }
+

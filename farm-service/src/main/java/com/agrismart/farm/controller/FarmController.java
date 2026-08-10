@@ -6,7 +6,6 @@ import com.agrismart.farm.service.FarmService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -20,12 +19,13 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/farms")
-@RequiredArgsConstructor
 @Tag(name = "Farm Management", description = "Endpoints for farm configuration, tracking, and details retrieval")
 public class FarmController {
 
     private final FarmService farmService;
-
+    public FarmController(FarmService farmService) {
+    	this.farmService=farmService;
+    }
     @PostMapping
     @PreAuthorize("hasRole('FARMER')")
     @Operation(summary = "Add a new farm", description = "Farmer registers a new farm plot. Coordinates and soil specifications are optional.")

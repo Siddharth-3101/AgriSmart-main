@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import FloatingAI from "../components/FloatingAI";
+import { documentApi, schemeApi } from "../services/api";
 
 import "../styles/schemes.css";
 
@@ -18,10 +19,13 @@ import {
   ArrowRight,
   ArrowLeft,
   Filter,
-  CircleAlert
+  CircleAlert,
+  CheckCircle2,
+  XCircle,
+  Clock
 } from "lucide-react";
 
-import { toggleApplySchemeAction, togglePossessedDocAction, setSchemes } from "../main";
+import { toggleApplySchemeAction, togglePossessedDocAction, setSchemes, setDocuments } from "../main";
 
 export default function Schemes() {
   const navigate = useNavigate();
@@ -36,6 +40,8 @@ export default function Schemes() {
   const possessedDocs = useSelector((state) => state.agri.possessedDocs) || [];
   const appliedSchemeIds = useSelector((state) => state.agri.appliedSchemeIds) || [];
   const recommendedFromRedux = useSelector((state) => state.agri.schemes) || [];
+  // Backend-uploaded documents (used to determine verified possession)
+  const backendDocuments = useSelector((state) => state.agri.documents) || [];
 
   const [selectedScheme, setSelectedScheme] = useState(null);
   const [search, setSearch] = useState("");
@@ -193,28 +199,47 @@ export default function Schemes() {
     }
   ];
 
+  // Determine effective possessed docs:
+  // If online and have backend docs, use VERIFIED ones.
+  // Otherwise fall back to the manual checkbox list.
+  const effectivePossessedDocs = useMemo(() => {
+    if (!demoMode && backendDocuments.length > 0) {
+      return backendDocuments
+        .filter(d => d.verificationStatus === "VERIFIED")
+        .map(d => d.documentType);
+    }
+    return possessedDocs;
+  }, [backendDocuments, possessedDocs, demoMode]);
+
   // Fetch or calculate schemes recommendation
   const computedSchemesList = useMemo(() => {
     // If user exists and we have real recommended schemes from analytics-service in Redux
     if (!demoMode && recommendedFromRedux.length > 0) {
       return recommendedFromRedux.map((item) => {
-        // Map backend properties
-        const reqDocs = (item.requiredDocuments || "").split(",").map(d => d.trim());
-        const missing = reqDocs.filter(d => !possessedDocs.some(pd => pd.toLowerCase().includes(d.toLowerCase()) || d.toLowerCase().includes(pd.toLowerCase())));
+        // Support both camelCase and snake_case keys from backend
+        const schemeName = item.schemeName || item.scheme_name || "";
+        const requiredDocsStr = item.requiredDocuments || item.required_documents || "";
+        const reqDocs = requiredDocsStr ? requiredDocsStr.split(",").map(d => d.trim()).filter(Boolean) : [];
+        const missing = reqDocs.filter(d =>
+          !effectivePossessedDocs.some(
+            pd => (pd || "").toLowerCase().includes((d || "").toLowerCase()) ||
+                  (d || "").toLowerCase().includes((pd || "").toLowerCase())
+          )
+        );
         
         return {
-          id: item.schemeId,
-          name: item.schemeName,
+          id: item.schemeId || item.scheme_id,
+          name: schemeName,
           category: item.category || "Financial Assistance",
-          match: item.eligibilityMatch || 70,
+          match: item.eligibilityMatch || item.eligibility_match || 70,
           benefit: item.benefits || "Subsidies",
-          description: item.description,
+          description: item.description || "",
           missing: missing,
-          benefits: item.benefits,
+          benefits: item.benefits || "",
           eligibilityCriteria: item.eligibilityCriteria || item.eligibility_criteria || "",
-          requiredDocuments: item.requiredDocuments || item.required_documents || "",
+          requiredDocuments: requiredDocsStr,
           officialLink: item.officialLink || item.official_link || "https://india.gov.in",
-          state: item.state
+          state: item.state || "All States"
         };
       });
     }
@@ -222,59 +247,71 @@ export default function Schemes() {
     // Client-side simulation fallback
     const totalArea = farms.reduce((acc, f) => acc + (f.area || 0), 0);
     const hasActiveCrop = crops.some(c => c.status === "ACTIVE");
-    const userState = user ? user.state : "Tamil Nadu";
+    const userState = user ? (user.state || "Tamil Nadu") : "Tamil Nadu";
 
     return rawMockSchemes.map((item) => {
       let score = 70;
+      const criteria = item.eligibilityCriteria || "";
       if (item.state !== 'All States' && userState !== item.state) {
         score = 0;
       } else {
         if (item.state !== 'All States' && userState === item.state) score += 15;
-        if (hasActiveCrop && item.eligibilityCriteria.toLowerCase().includes("crop")) score += 10;
-        if (item.eligibilityCriteria.toLowerCase().includes("landholding") || item.eligibilityCriteria.toLowerCase().includes("acres")) {
+        if (hasActiveCrop && criteria.toLowerCase().includes("crop")) score += 10;
+        if (criteria.toLowerCase().includes("landholding") || criteria.toLowerCase().includes("acres")) {
           if (totalArea > 0 && totalArea <= 5.0) score += 5;
           else if (totalArea > 5.0) score -= 10;
         }
       }
 
-      const reqDocs = item.requiredDocuments.split(",").map(d => d.trim());
-      const missing = reqDocs.filter(d => !possessedDocs.some(pd => pd.toLowerCase().includes(d.toLowerCase()) || d.toLowerCase().includes(pd.toLowerCase())));
-      score -= missing.length * 8; // Deduct for missing documents
+      const reqDocs = (item.requiredDocuments || "").split(",").map(d => d.trim()).filter(Boolean);
+      const missing = reqDocs.filter(d =>
+        !effectivePossessedDocs.some(
+          pd => (pd || "").toLowerCase().includes((d || "").toLowerCase()) ||
+                (d || "").toLowerCase().includes((pd || "").toLowerCase())
+        )
+      );
+      score -= missing.length * 8;
 
       return {
         id: item.schemeId,
-        name: item.schemeName,
-        category: item.category,
+        name: item.schemeName || "",
+        category: item.category || "",
         match: Math.min(100, Math.max(0, score)),
-        benefit: item.benefits,
-        description: item.description,
+        benefit: item.benefits || "",
+        description: item.description || "",
         missing: missing,
-        benefits: item.benefits,
-        eligibilityCriteria: item.eligibilityCriteria,
-        requiredDocuments: item.requiredDocuments,
-        officialLink: item.officialLink,
-        state: item.state
+        benefits: item.benefits || "",
+        eligibilityCriteria: item.eligibilityCriteria || "",
+        requiredDocuments: item.requiredDocuments || "",
+        officialLink: item.officialLink || "https://india.gov.in",
+        state: item.state || "All States"
       };
     }).filter(s => s.match > 0).sort((a, b) => b.match - a.match);
-  }, [recommendedFromRedux, farms, crops, user, possessedDocs, demoMode]);
+  }, [recommendedFromRedux, farms, crops, user, effectivePossessedDocs, demoMode]);
 
   // Sync recommended schemes if online
   useEffect(() => {
     if (!demoMode && token) {
       const syncSchemes = async () => {
         try {
-          const res = await fetch("http://localhost:8085/api/schemes/recommend", {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (res.ok) {
-            const data = await res.json();
-            dispatch(setSchemes(data));
-          }
+          const data = await schemeApi.getRecommendedSchemes(token);
+          if (data) dispatch(setSchemes(data));
         } catch (e) {
-          console.warn("Analytics Service schemes sync failed.");
+          console.warn("Schemes sync failed.");
         }
       };
       syncSchemes();
+
+      // Also fetch backend documents to compute possession
+      const syncDocuments = async () => {
+        try {
+          const docs = await documentApi.getMyDocuments(token);
+          if (docs) dispatch(setDocuments(docs));
+        } catch (e) {
+          console.warn("Documents sync failed.");
+        }
+      };
+      syncDocuments();
     }
   }, [token, demoMode]);
 
@@ -283,20 +320,61 @@ export default function Schemes() {
     toast.info(`Updated possessed documents checklist.`);
   };
 
-  const handleApplyScheme = (schemeId, schemeName) => {
-    dispatch(toggleApplySchemeAction(schemeId));
+  const downloadDocumentTemplate = (docName) => {
+    const content = `AGRISMART GOVERNMENT SCHEME DOCUMENT TEMPLATE\nDocument Type: ${docName}\n\nThis is an official document checklist template for ${docName}.\nPlease fill in your details and submit it to your regional agricultural office.`;
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${docName.replace(/\s+/g, "_")}_template.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Downloaded ${docName} template!`);
+  };
+
+  const handleApplyScheme = async (schemeId, schemeName) => {
     const isApplied = appliedSchemeIds.includes(schemeId);
-    if (isApplied) {
-      toast.info(`Cancelled application for: ${schemeName}`);
-    } else {
-      toast.success(`Successfully applied for: ${schemeName}!`);
+    if (demoMode) {
+      dispatch(toggleApplySchemeAction(schemeId));
+      if (isApplied) {
+        toast.info(`Cancelled application for: ${schemeName}`);
+      } else {
+        toast.success(`Successfully applied for: ${schemeName}!`);
+      }
+      return;
+    }
+    try {
+      const method = isApplied ? "DELETE" : "POST";
+      const endpoint = isApplied ? "withdraw" : "apply";
+      const res = await fetch(`http://localhost:8085/api/schemes/${endpoint}?schemeId=${schemeId}`, {
+        method: method,
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        dispatch(toggleApplySchemeAction(schemeId));
+        if (isApplied) {
+          toast.info(`Cancelled application for: ${schemeName}`);
+        } else {
+          toast.success(`Successfully applied for: ${schemeName}!`);
+        }
+      } else {
+        toast.error("Failed to update application status.");
+      }
+    } catch (e) {
+      toast.error("Error connecting to schemes service.");
     }
   };
 
-  // Filter schemes based on search and category
+  // Filter schemes — FIXED: guard against undefined name/description
   const filteredSchemes = computedSchemesList.filter((scheme) => {
-    const searchMatch = scheme.name.toLowerCase().includes(search.toLowerCase()) ||
-                        scheme.description.toLowerCase().includes(search.toLowerCase());
+    const name = (scheme.name || "").toLowerCase();
+    const desc = (scheme.description || "").toLowerCase();
+    const searchLower = search.toLowerCase();
+    const searchMatch = name.includes(searchLower) || desc.includes(searchLower);
     const categoryMatch = selectedCategory === "All" || scheme.category === selectedCategory;
     return searchMatch && categoryMatch;
   });
@@ -376,6 +454,22 @@ export default function Schemes() {
                         <span style={{ fontSize: "13.5px", fontWeight: "500", color: hasDoc ? "#166534" : "#991b1b" }}>
                           {doc} {hasDoc ? "(Possessed)" : "(Missing)"}
                         </span>
+                        <button
+                          onClick={() => downloadDocumentTemplate(doc)}
+                          style={{
+                            marginLeft: "auto",
+                            background: "transparent",
+                            color: "var(--primary)",
+                            border: "1px solid var(--primary)",
+                            padding: "4px 10px",
+                            borderRadius: "8px",
+                            fontSize: "11.5px",
+                            fontWeight: "700",
+                            cursor: "pointer"
+                          }}
+                        >
+                          Download Template
+                        </button>
                       </div>
                     );
                   })}
@@ -448,24 +542,71 @@ export default function Schemes() {
         <section className="govSchemesLayout">
           {/* SIDEBAR */}
           <aside className="govSchemesSidebar">
-            {/* Documents Checklist */}
+            {/* Documents Sidebar — shows backend docs when online, checkboxes in demo mode */}
             <div className="govSidebarCard">
               <h3>
                 <FileCheck size={20} />
-                Documents Checklist
+                Documents Status
               </h3>
-              <div className="govDocumentList">
-                {checklistDocs.map((doc) => (
-                  <label key={doc} className="govDocumentItem">
-                    <input
-                      type="checkbox"
-                      checked={possessedDocs.includes(doc)}
-                      onChange={() => handleToggleDoc(doc)}
-                    />
-                    <span>{doc}</span>
-                  </label>
-                ))}
-              </div>
+              {!demoMode && backendDocuments.length > 0 ? (
+                <div className="govDocumentList">
+                  {backendDocuments.map((doc) => (
+                    <div
+                      key={doc.documentId}
+                      className="govDocumentItem"
+                      style={{ display: "flex", alignItems: "center", gap: 8, cursor: "default" }}
+                    >
+                      {doc.verificationStatus === "VERIFIED" ? (
+                        <CheckCircle2 size={16} style={{ color: "#16a34a", flexShrink: 0 }} />
+                      ) : doc.verificationStatus === "REJECTED" ? (
+                        <XCircle size={16} style={{ color: "#ef4444", flexShrink: 0 }} />
+                      ) : (
+                        <Clock size={16} style={{ color: "#f59e0b", flexShrink: 0 }} />
+                      )}
+                      <span style={{ fontSize: 13, flex: 1 }}>{doc.documentType}</span>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 10,
+                        background: doc.verificationStatus === "VERIFIED" ? "#dcfce7" : doc.verificationStatus === "REJECTED" ? "#fee2e2" : "#fef3c7",
+                        color: doc.verificationStatus === "VERIFIED" ? "#15803d" : doc.verificationStatus === "REJECTED" ? "#dc2626" : "#b45309"
+                      }}>
+                        {doc.verificationStatus}
+                      </span>
+                    </div>
+                  ))}
+                  <p style={{ fontSize: 12, color: "#64748b", marginTop: 8 }}>
+                    Only <strong>Verified</strong> documents count toward eligibility.
+                    <span
+                      style={{ color: "var(--primary)", cursor: "pointer", marginLeft: 4 }}
+                      onClick={() => navigate("/profile")}
+                    >
+                      Upload more →
+                    </span>
+                  </p>
+                </div>
+              ) : (
+                <div className="govDocumentList">
+                  {checklistDocs.map((doc) => (
+                    <label key={doc} className="govDocumentItem">
+                      <input
+                        type="checkbox"
+                        checked={possessedDocs.includes(doc)}
+                        onChange={() => handleToggleDoc(doc)}
+                      />
+                      <span>{doc}</span>
+                    </label>
+                  ))}
+                  {!demoMode && (
+                    <p style={{ fontSize: 12, color: "#64748b", marginTop: 8 }}>
+                      <span
+                        style={{ color: "var(--primary)", cursor: "pointer" }}
+                        onClick={() => navigate("/profile")}
+                      >
+                        Upload real documents →
+                      </span>
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Categories */}

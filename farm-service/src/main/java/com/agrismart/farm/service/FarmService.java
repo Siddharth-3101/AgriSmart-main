@@ -6,18 +6,18 @@ import com.agrismart.farm.entity.Farm;
 import com.agrismart.farm.exception.BadRequestException;
 import com.agrismart.farm.exception.ResourceNotFoundException;
 import com.agrismart.farm.repository.FarmRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 public class FarmService {
 
     private final FarmRepository farmRepository;
-
+    public FarmService(FarmRepository farmRepository) {
+    	this.farmRepository=farmRepository;
+    }
     @Transactional
     public FarmResponse addFarm(FarmRequest request, Long userId) {
         Farm farm = Farm.builder()

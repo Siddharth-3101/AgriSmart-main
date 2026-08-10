@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { toast } from "react-toastify";
@@ -19,9 +19,27 @@ import {
   FaCheckCircle,
   FaUpload,
   FaSeedling,
+  FaDownload,
+  FaTrash,
+  FaRedo,
+  FaTimesCircle,
+  FaHourglassHalf,
 } from "react-icons/fa";
 
-import { setUser, logout } from "../main";
+import { setUser, logout, setDocuments } from "../main";
+import { documentApi } from "../services/api";
+
+const DOC_TYPES = [
+  "Aadhaar Card",
+  "Bank Passbook",
+  "Land Records",
+  "Soil Health Card",
+  "Sowing Certificate",
+  "PAN Card",
+  "Caste Certificate",
+  "Income Certificate",
+  "Other",
+];
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -31,8 +49,74 @@ export default function Profile() {
   const token = useSelector((state) => state.agri.token);
   const demoMode = useSelector((state) => state.agri.demoMode);
   const possessedDocs = useSelector((state) => state.agri.possessedDocs) || [];
+  const backendDocuments = useSelector((state) => state.agri.documents) || [];
 
   const [activeTab, setActiveTab] = useState("profile");
+
+  // Document upload state
+  const [uploadType,      setUploadType]      = useState(DOC_TYPES[0]);
+  const [uploading,       setUploading]       = useState(false);
+  const [replaceMode,     setReplaceMode]     = useState(null); // documentId being replaced
+  const fileInputRef  = useRef(null);
+  const replaceRef    = useRef(null);
+
+  // Fetch documents on mount (when online)
+  useEffect(() => {
+    if (!demoMode && token) {
+      documentApi.getMyDocuments(token)
+        .then(docs => dispatch(setDocuments(Array.isArray(docs) ? docs : [])))
+        .catch(() => {});
+    }
+  }, [token, demoMode]);
+
+  // Upload handler
+  const handleUpload = async (e, replaceDocId = null) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast.error("File too large (max 10MB)"); return; }
+
+    // If replacing, first delete the old one
+    if (replaceDocId) {
+      try {
+        await documentApi.delete(token, replaceDocId);
+      } catch {}
+    }
+
+    setUploading(true);
+    try {
+      const result = await documentApi.upload(token, uploadType, file);
+      const updated = await documentApi.getMyDocuments(token);
+      dispatch(setDocuments(updated));
+      toast.success(`"${uploadType}" uploaded successfully! Status: Pending verification.`);
+    } catch (err) {
+      toast.error("Upload failed: " + err.message);
+    }
+    setUploading(false);
+    setReplaceMode(null);
+    e.target.value = "";
+  };
+
+  // Delete handler
+  const handleDelete = async (docId, docType) => {
+    if (!window.confirm(`Delete "${docType}"? This cannot be undone.`)) return;
+    try {
+      await documentApi.delete(token, docId);
+      const updated = await documentApi.getMyDocuments(token);
+      dispatch(setDocuments(updated));
+      toast.success(`"${docType}" deleted.`);
+    } catch (err) {
+      toast.error("Delete failed: " + err.message);
+    }
+  };
+
+  // Download handler
+  const handleDownload = async (doc) => {
+    try {
+      await documentApi.download(token, doc.documentId, doc.originalFilename);
+    } catch {
+      toast.error("Download failed.");
+    }
+  };
 
   // Profile Form States
   const [profileForm, setProfileForm] = useState({
@@ -206,7 +290,7 @@ export default function Profile() {
   const handleLogoutClick = () => {
     dispatch(logout());
     toast.success("Logged out successfully.");
-    navigate("/login");
+    navigate("/");
   };
 
   const getInitials = (name) => {
@@ -358,38 +442,153 @@ export default function Profile() {
             {/* DOCUMENTS TAB */}
             {activeTab === "documents" && (
               <div className="contentCard">
-                <div className="sectionHeader" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                  <div>
-                    <h1>Documents</h1>
-                    <p>Manage all your uploaded documents.</p>
-                  </div>
-                  <button className="greenBtn" onClick={() => toast.info("Document upload dialog simulation.")} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--primary)", color: "#fff", border: "none", padding: "10px 16px", borderRadius: "8px", cursor: "pointer", fontWeight: "600" }}>
-                    <FaUpload /> Upload Document
-                  </button>
+                <div style={{ marginBottom: 20 }}>
+                  <h1>My Documents</h1>
+                  <p>Upload, view, and manage your identity and scheme documents. Officer verification happens after upload.</p>
                 </div>
 
-                <div className="documentTable">
-                  <div className="documentHead" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", padding: "12px", borderBottom: "2px solid #cbdcd0", fontWeight: "bold" }}>
-                    <span>Document</span>
-                    <span>Status</span>
-                    <span>Uploaded</span>
-                  </div>
-
-                  {documents.map((doc, index) => (
-                    <div className="documentRow" key={index} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", padding: "12px", borderBottom: "1px solid #e2f3e9", alignItems: "center" }}>
-                      <div className="documentName" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <FaFileAlt style={{ color: "var(--primary)" }} />
-                        <strong>{doc.name}</strong>
+                {/* Upload Section */}
+                {!demoMode && (
+                  <div style={{ background: "#f0fdf4", border: "1.5px dashed #86efac", borderRadius: 14, padding: "18px 20px", marginBottom: 24 }}>
+                    <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 800, color: "#15803d" }}>
+                      <FaUpload style={{ marginRight: 8 }} />Upload New Document
+                    </h3>
+                    <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+                      <div style={{ flex: 1, minWidth: 180 }}>
+                        <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 5 }}>Document Type</label>
+                        <select
+                          value={uploadType}
+                          onChange={e => setUploadType(e.target.value)}
+                          style={{ width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #d1fae5", fontSize: 13, fontWeight: 600, color: "#334155", background: "#fff" }}
+                        >
+                          {DOC_TYPES.map(t => <option key={t}>{t}</option>)}
+                        </select>
                       </div>
-                      <span className={`govStatusBadge ${doc.status.toLowerCase()}`} style={{ display: "inline-block", width: "fit-content", padding: "4px 8px", borderRadius: "12px", fontSize: "12px", background: doc.status === "Verified" ? "#dcfce7" : "#fef3c7", color: doc.status === "Verified" ? "#16a34a" : "#d97706" }}>
-                        {doc.status}
-                      </span>
-                      <span style={{ fontSize: "13px", color: "gray" }}>{doc.uploaded}</span>
+                      <div>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          style={{ display: "none" }}
+                          onChange={e => handleUpload(e)}
+                        />
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploading}
+                          style={{
+                            padding: "10px 20px", borderRadius: 10, border: "none",
+                            background: uploading ? "#94a3b8" : "linear-gradient(135deg,#16a34a,#15803d)",
+                            color: "#fff", fontWeight: 800, fontSize: 13, cursor: uploading ? "not-allowed" : "pointer",
+                            display: "flex", alignItems: "center", gap: 8
+                          }}
+                        >
+                          <FaUpload /> {uploading ? "Uploading..." : "Choose File & Upload"}
+                        </button>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                    <p style={{ fontSize: 12, color: "#64748b", marginTop: 10, marginBottom: 0 }}>Accepted: PDF, JPEG, PNG · Max size: 10MB</p>
+                  </div>
+                )}
+
+                {/* Hidden replace input */}
+                <input
+                  ref={replaceRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  style={{ display: "none" }}
+                  onChange={e => handleUpload(e, replaceMode)}
+                />
+
+                {/* Document List */}
+                {!demoMode && backendDocuments.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {backendDocuments.map(doc => {
+                      const statusStyle = {
+                        VERIFIED: { bg: "#dcfce7", color: "#15803d", icon: <FaCheckCircle /> },
+                        PENDING:  { bg: "#fef3c7", color: "#b45309", icon: <FaHourglassHalf /> },
+                        REJECTED: { bg: "#fee2e2", color: "#dc2626", icon: <FaTimesCircle /> },
+                      }[doc.verificationStatus] || { bg: "#f1f5f9", color: "#64748b", icon: <FaFileAlt /> };
+
+                      return (
+                        <div key={doc.documentId} style={{ background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 14, padding: "14px 18px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                              <div style={{ width: 40, height: 40, borderRadius: 10, background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <FaFileAlt style={{ color: "#16a34a", fontSize: 18 }} />
+                              </div>
+                              <div>
+                                <strong style={{ fontSize: 14, color: "#0f172a", display: "block" }}>{doc.documentType}</strong>
+                                <span style={{ fontSize: 12, color: "#64748b" }}>{doc.originalFilename}</span><br />
+                                <span style={{ fontSize: 11, color: "#94a3b8" }}>
+                                  {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : ""}
+                                  {doc.fileSize ? ` · ${(doc.fileSize / 1024).toFixed(1)} KB` : ""}
+                                </span>
+                              </div>
+                            </div>
+                            <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 800, background: statusStyle.bg, color: statusStyle.color, display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                              {statusStyle.icon} {doc.verificationStatus}
+                            </span>
+                          </div>
+                          {doc.rejectionRemarks && (
+                            <div style={{ fontSize: 12, color: "#dc2626", background: "#fff5f5", padding: "6px 10px", borderRadius: 8, border: "1px solid #fecdd3", marginBottom: 10 }}>
+                              ⚠️ Rejection Reason: {doc.rejectionRemarks}
+                            </div>
+                          )}
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              onClick={() => handleDownload(doc)}
+                              style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#fff", color: "#334155", fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
+                            ><FaDownload /> Download</button>
+                            <button
+                              onClick={() => { setReplaceMode(doc.documentId); setUploadType(doc.documentType); replaceRef.current?.click(); }}
+                              style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1.5px solid #dbeafe", background: "#eff6ff", color: "#2563eb", fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
+                            ><FaRedo /> Replace</button>
+                            <button
+                              onClick={() => handleDelete(doc.documentId, doc.documentType)}
+                              style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1.5px solid #fee2e2", background: "#fff5f5", color: "#dc2626", fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
+                            ><FaTrash /> Delete</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : !demoMode && backendDocuments.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
+                    <FaFileAlt style={{ fontSize: 48, marginBottom: 12, opacity: 0.3 }} />
+                    <p style={{ fontWeight: 700, fontSize: 15 }}>No documents uploaded yet</p>
+                    <p style={{ fontSize: 13 }}>Upload your Aadhaar Card, Land Records, etc. to boost scheme eligibility.</p>
+                  </div>
+                ) : (
+                  /* Demo mode — show static checklist */
+                  <div className="documentTable">
+                    <div className="documentHead" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", padding: "12px", borderBottom: "2px solid #cbdcd0", fontWeight: "bold" }}>
+                      <span>Document</span>
+                      <span>Status</span>
+                      <span>Uploaded</span>
+                    </div>
+                    {[
+                      { name: "Aadhaar Card",      status: "Verified", uploaded: "12 Jun 2026" },
+                      { name: "Bank Passbook",      status: "Pending",  uploaded: "04 Jun 2026" },
+                      { name: "Land Records",       status: "Pending",  uploaded: "-"           },
+                      { name: "Soil Health Card",   status: "Pending",  uploaded: "-"           },
+                      { name: "Sowing Certificate", status: "Pending",  uploaded: "-"           },
+                    ].map((doc, i) => (
+                      <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", padding: "12px", borderBottom: "1px solid #e2f3e9", alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <FaFileAlt style={{ color: "var(--primary)" }} />
+                          <strong>{doc.name}</strong>
+                        </div>
+                        <span style={{ display: "inline-block", width: "fit-content", padding: "4px 8px", borderRadius: 12, fontSize: 12, background: doc.status === "Verified" ? "#dcfce7" : "#fef3c7", color: doc.status === "Verified" ? "#16a34a" : "#d97706" }}>
+                          {doc.status}
+                        </span>
+                        <span style={{ fontSize: 13, color: "gray" }}>{doc.uploaded}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
+
 
             {/* SECURITY TAB */}
             {activeTab === "security" && (

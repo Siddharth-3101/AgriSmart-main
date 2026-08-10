@@ -1,6 +1,5 @@
 package com.agrismart.analytics.service;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -10,11 +9,12 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 public class SchemeService {
 
     private final JdbcTemplate jdbcTemplate;
-
+    public SchemeService(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
     @org.springframework.context.event.EventListener(org.springframework.context.event.ContextRefreshedEvent.class)
     public void seedSchemesIfNecessary() {
         try {
@@ -30,6 +30,15 @@ public class SchemeService {
                 "    state VARCHAR(100)," +
                 "    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
                 ")");
+
+            // After creating schemes table, also create scheme_applications table
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS scheme_applications (" +
+                "application_id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                "user_id BIGINT NOT NULL," +
+                "scheme_id BIGINT NOT NULL," +
+                "status VARCHAR(20) DEFAULT 'APPLIED'," +
+                "applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
+            ")");
 
             Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM schemes", Integer.class);
             if (count == null || count < 5) {
@@ -143,5 +152,75 @@ public class SchemeService {
         // Sort recommended schemes by eligibilityMatch descending
         recommended.sort((a, b) -> ((Integer) b.get("eligibilityMatch")).compareTo((Integer) a.get("eligibilityMatch")));
         return recommended;
+    }
+
+    public Map<String, Object> applyToScheme(Long userId, Long schemeId) {
+        // Check if already applied
+        List<Map<String, Object>> existing = jdbcTemplate.queryForList(
+            "SELECT * FROM scheme_applications WHERE user_id = ? AND scheme_id = ?", userId, schemeId);
+        if (!existing.isEmpty()) {
+            throw new RuntimeException("Already applied to this scheme");
+        }
+
+        jdbcTemplate.update(
+            "INSERT INTO scheme_applications (user_id, scheme_id) VALUES (?, ?)",
+            userId, schemeId
+        );
+        
+        return jdbcTemplate.queryForMap(
+            "SELECT * FROM scheme_applications WHERE user_id = ? AND scheme_id = ? ORDER BY applied_at DESC LIMIT 1",
+            userId, schemeId
+        );
+    }
+
+    public void withdrawApplication(Long userId, Long schemeId) {
+        jdbcTemplate.update(
+            "DELETE FROM scheme_applications WHERE user_id = ? AND scheme_id = ?",
+            userId, schemeId
+        );
+    }
+
+    public List<Map<String, Object>> getUserApplications(Long userId) {
+        return jdbcTemplate.queryForList(
+            "SELECT a.*, s.scheme_name, s.category, s.benefits, s.official_link " +
+            "FROM scheme_applications a " +
+            "JOIN schemes s ON a.scheme_id = s.scheme_id " +
+            "WHERE a.user_id = ? ORDER BY a.applied_at DESC", 
+            userId
+        );
+    }
+
+    public List<Map<String, Object>> getAllApplications() {
+        return jdbcTemplate.queryForList(
+            "SELECT a.*, s.scheme_name, s.category, u.name as user_name, u.email as user_email " +
+            "FROM scheme_applications a " +
+            "JOIN schemes s ON a.scheme_id = s.scheme_id " +
+            "JOIN users u ON a.user_id = u.user_id " +
+            "ORDER BY a.applied_at DESC"
+        );
+    }
+
+    public Map<String, Object> getSchemeStats() {
+        Map<String, Object> stats = new HashMap<>();
+        
+        Integer totalSchemes = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM schemes", Integer.class);
+        Integer totalApplications = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scheme_applications", Integer.class);
+        
+        List<Map<String, Object>> byStatus = jdbcTemplate.queryForList(
+            "SELECT status, COUNT(*) as count FROM scheme_applications GROUP BY status"
+        );
+        
+        stats.put("totalSchemes", totalSchemes);
+        stats.put("totalApplications", totalApplications);
+        stats.put("applicationsByStatus", byStatus);
+        
+        return stats;
+    }
+
+    public void updateApplicationStatus(Long applicationId, String status) {
+        jdbcTemplate.update(
+            "UPDATE scheme_applications SET status = ? WHERE application_id = ?",
+            status, applicationId
+        );
     }
 }

@@ -7,7 +7,6 @@ import com.agrismart.crop.service.CropService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -24,13 +23,15 @@ import com.agrismart.crop.dto.ChatbotResponse;
 
 @RestController
 @RequestMapping("/api/crops")
-@RequiredArgsConstructor
 @Tag(name = "Crop Management", description = "Endpoints for crop tracking, logging, lifecycle updates, and details retrieval")
 public class CropController {
 
     private final CropService cropService;
     private final ChatbotService chatbotService;
-
+    public CropController(CropService cropService, ChatbotService chatbotService) {
+        this.cropService = cropService;
+        this.chatbotService = chatbotService;
+    }
     @PostMapping
     @PreAuthorize("hasRole('FARMER')")
     @Operation(summary = "Add a new crop record", description = "Farmer registers a crop cultivation event. Verifies farm ownership.")

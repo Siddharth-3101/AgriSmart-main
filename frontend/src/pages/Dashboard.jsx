@@ -32,10 +32,11 @@ export default function Dashboard() {
 
   // Filter regional alerts
   const filteredAlerts = broadcastNotifications.filter(n => {
-    if (!user) return false;
-    return n.targetRegion === 'All Regions' || 
-           (user.district && n.targetRegion.toLowerCase() === user.district.toLowerCase()) ||
-           (user.state && n.targetRegion.toLowerCase() === user.state.toLowerCase());
+    if (!user || !n || !n.targetRegion) return false;
+    const region = n.targetRegion.toLowerCase();
+    return region === 'all regions' ||
+           (user.district && region === user.district.toLowerCase()) ||
+           (user.state && region === user.state.toLowerCase());
   });
 
   // Calculate dynamic tasks based on active crops
@@ -67,7 +68,7 @@ export default function Dashboard() {
 
   if (activeCrops.length > 0) {
     activeCrops.forEach((crop, index) => {
-      const cropName = crop.cropName.toLowerCase();
+      const cropName = (crop.cropName || '').toLowerCase();
       if (cropName.includes('rice') || cropName.includes('paddy')) {
         recommendations.push({
           id: index + 1,
@@ -114,14 +115,16 @@ export default function Dashboard() {
   const events = [];
   if (activeCrops.length > 0) {
     activeCrops.forEach((crop, index) => {
-      const dateObj = new Date(crop.expectedHarvestDate);
       const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+      const rawDate = crop.expectedHarvestDate || crop.harvestDate;
+      const dateObj = rawDate ? new Date(rawDate) : null;
+      const isValid = dateObj && !isNaN(dateObj.getTime());
       events.push({
         id: index + 1,
-        title: `${crop.cropName} Harvest`,
-        month: months[dateObj.getMonth()],
-        day: String(dateObj.getDate()).padStart(2, '0'),
-        date: dateObj.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' })
+        title: `${crop.cropName || 'Crop'} Harvest`,
+        month: isValid ? months[dateObj.getMonth()] : "---",
+        day:   isValid ? String(dateObj.getDate()).padStart(2, '0') : "--",
+        date:  isValid ? dateObj.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' }) : "Date not set"
       });
     });
   } else {
@@ -239,7 +242,7 @@ export default function Dashboard() {
                 <div>
                   <CalendarDays />
                   <span>Updated</span>
-                  <strong>{new Date(weather.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
+                  <strong>{weather.recordedAt ? new Date(weather.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Live'}</strong>
                 </div>
               </div>
             </div>

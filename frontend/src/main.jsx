@@ -10,6 +10,7 @@ import "./sankari.css";
 
 const initialAgriState = {
   user: null,
+  usersList: [],
   token: localStorage.getItem('token') || '',
   demoMode: !localStorage.getItem('token'),
   apiOnline: false,
@@ -22,6 +23,7 @@ const initialAgriState = {
   schemes: [],
   appliedSchemeIds: JSON.parse(localStorage.getItem('appliedSchemeIds') || '[]'),
   possessedDocs: JSON.parse(localStorage.getItem('possessedDocs') || '[]'),
+  documents: [],            // farmer uploaded documents from backend
   broadcastNotifications: JSON.parse(localStorage.getItem('broadcast_notifications') || '[]'),
   chatMessages: [
     { sender: 'bot', text: 'Hello! I am your AgriSmart AI Chatbot. How can I assist you with your farming today? (Available in English, Hindi, Punjabi, Telugu, and Tamil)', time: 'Just now' }
@@ -34,6 +36,7 @@ const agriSlice = createSlice({
   initialState: initialAgriState,
   reducers: {
     setUser: (state, action) => { state.user = action.payload; },
+    setUsersList: (state, action) => { state.usersList = action.payload; },
     setToken: (state, action) => { 
       state.token = action.payload;
       if (action.payload) {
@@ -67,6 +70,11 @@ const agriSlice = createSlice({
     setWeatherHistory: (state, action) => { state.weatherHistory = action.payload; },
     setAnalytics: (state, action) => { state.analytics = action.payload; },
     setSchemes: (state, action) => { state.schemes = action.payload; },
+    setDocuments: (state, action) => { state.documents = action.payload; },
+    setAppliedSchemeIds: (state, action) => {
+      state.appliedSchemeIds = action.payload;
+      localStorage.setItem('appliedSchemeIds', JSON.stringify(action.payload));
+    },
     toggleApplySchemeAction: (state, action) => {
       const schemeId = action.payload;
       if (state.appliedSchemeIds.includes(schemeId)) {
@@ -117,6 +125,7 @@ const agriSlice = createSlice({
 
 export const {
   setUser,
+  setUsersList,
   setToken,
   setDemoMode,
   setApiOnline,
@@ -132,6 +141,8 @@ export const {
   setWeatherHistory,
   setAnalytics,
   setSchemes,
+  setDocuments,
+  setAppliedSchemeIds,
   toggleApplySchemeAction,
   togglePossessedDocAction,
   setBroadcastNotifications,

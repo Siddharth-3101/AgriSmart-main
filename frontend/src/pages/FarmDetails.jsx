@@ -84,7 +84,21 @@ export default function FarmDetails() {
       }
     }
 
-    // 2. Fallback to center bounding box if missing polygon
+    // 2. Read from DB location column if missing in localStorage
+    if ((!coords || coords.length === 0) && dbFarm.location) {
+      if (dbFarm.location.includes(" | ")) {
+        try {
+          const jsonPart = dbFarm.location.split(" | ").slice(1).join(" | ").trim();
+          coords = JSON.parse(jsonPart);
+        } catch (e) {}
+      } else if (dbFarm.location.trim().startsWith("[")) {
+        try {
+          coords = JSON.parse(dbFarm.location);
+        } catch (e) {}
+      }
+    }
+
+    // 3. Fallback to center bounding box if missing polygon
     if ((!coords || coords.length === 0) && dbFarm.latitude && dbFarm.longitude) {
       const lat = dbFarm.latitude;
       const lng = dbFarm.longitude;

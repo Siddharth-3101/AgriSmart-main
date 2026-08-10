@@ -1,1072 +1,380 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "../styles/ofarm.css";
 import { useNavigate } from "react-router-dom";
-
+import { useSelector, useDispatch } from "react-redux";
+import { toast } from "react-toastify";
 import {
-  FaBars,
-  FaHome,
-  FaUsers,
-  FaTractor,
-  FaLeaf,
-  FaClipboardList,
-  FaBell,
-  FaSearch,
-  FaUserCircle,
-  FaCog,
-  FaMapMarkerAlt,
-  FaTint,
-  FaSeedling,
-  FaMountain
+  FaBars, FaHome, FaUsers, FaTractor, FaClipboardList, FaBell,
+  FaSearch, FaUserCircle, FaSignOutAlt, FaTimes,
+  FaMapMarkerAlt, FaSeedling, FaMountain, FaTint, FaLeaf
 } from "react-icons/fa";
-import {
-  WiDaySunny,
-  WiCloud,
-  WiRain,
-  WiHumidity,
-  WiStrongWind,
-} from "react-icons/wi";
-import {
-  MdAgriculture,
-  MdLandscape,
-} from "react-icons/md";
+import { MdAgriculture } from "react-icons/md";
+import { setUser, setToken } from "../main";
+import { farmApi, cropApi } from "../services/api";
 
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  BarChart,
-  Bar,
-  Legend,
-} from "recharts";
-
-const OFarm = () => {
-
-  const navigate = useNavigate();
-
-  const [showSidebar, setShowSidebar] = useState(false);
-
-  const [selectedFarm, setSelectedFarm] = useState(0);
-
-  const menuItems = [
-    {
-      name: "Dashboard",
-      icon: <FaHome />,
-      path: "/officer/dashboard",
-    },
-    {
-      name: "Farmers",
-      icon: <FaUsers />,
-      path: "/officer/farmers",
-    },
-    {
-      name: "Farms",
-      icon: <FaTractor />,
-      path: "/officer/ofarms",
-    },
-    {
-      name: "Schemes",
-      icon: <FaClipboardList />,
-      path: "/officer/oschemes",
-    },
-    {
-      name: "Crops",
-      icon: <FaLeaf />,
-      path: "/officer/ocrop",
-    },
-    {
-      name: "Weather",
-      icon: <WiDaySunny />,
-      path: "/officer/oweather",
-    },
-        {
-          name: "Notifications",
-          icon: <FaBell />,
-          path: "/officer/onotification"
-        }
-        ,
-        
-            {
-              name:"Profile",
-              icon:<FaUserCircle/>,
-              path:"/officer/oprofile"
-            }
-        
-  ];
-  const cultivationTrend = [
-  { year: "2021", area: 14200 },
-  { year: "2022", area: 15000 },
-  { year: "2023", area: 16100 },
-  { year: "2024", area: 16900 },
-  { year: "2025", area: 17650 },
-  { year: "2026", area: 18450 },
+const MENU = [
+  { name: "Dashboard",     icon: <FaHome />,         path: "/officer/dashboard",   key: "dashboard" },
+  { name: "Farmers",       icon: <FaUsers />,         path: "/officer/farmers",     key: "farmers"   },
+  { name: "Farms & Crops", icon: <FaTractor />,       path: "/officer/ofarms",      key: "farms"     },
+  { name: "Schemes",       icon: <FaClipboardList />, path: "/officer/oschemes",    key: "schemes"   },
+  { name: "Broadcast",     icon: <FaBell />,          path: "/officer/onification", key: "notif"     },
+  { name: "Profile",       icon: <FaUserCircle />,    path: "/officer/oprofile",    key: "profile"   },
 ];
 
-const soilDistribution = [
-  { name: "Black", value: 40 },
-  { name: "Red", value: 28 },
-  { name: "Loamy", value: 20 },
-  { name: "Clay", value: 12 },
-];
-
-const irrigationDistribution = [
-  { name: "Drip", value: 35 },
-  { name: "Canal", value: 30 },
-  { name: "Sprinkler", value: 20 },
-  { name: "Rain-fed", value: 15 },
-];
-
-const pieColors = [
-  "#2563eb",
-  "#16a34a",
-  "#f59e0b",
-  "#8b5cf6",
-];
-
-  const stats = [
-    {
-      title: "Total Farms",
-      value: "1,245",
-      icon: <FaTractor />,
-      color: "#2563eb",
-      bg: "#dbeafe",
-    },
-    {
-      title: "Cultivated Area",
-      value: "18,450 Acres",
-      icon: <MdLandscape />,
-      color: "#16a34a",
-      bg: "#dcfce7",
-    },
-    {
-      title: "Average Farm Size",
-      value: "4.8 Acres",
-      icon: <FaMountain />,
-      color: "#f59e0b",
-      bg: "#fef3c7",
-    },
-    {
-      title: "Irrigated Farms",
-      value: "72%",
-      icon: <FaTint />,
-      color: "#8b5cf6",
-      bg: "#ede9fe",
-    },
-  ];
-  const farmSizeData = [
-  { size: "<2 Acres", farms: 120 },
-  { size: "2-5 Acres", farms: 420 },
-  { size: "5-10 Acres", farms: 310 },
-  { size: ">10 Acres", farms: 95 },
-];
-
-const organicData = [
-  { name: "Organic", value: 38 },
-  { name: "Conventional", value: 62 },
-];
-
-const landUtilizationData = [
-  { name: "Cultivated", value: 82 },
-  { name: "Unused", value: 18 },
-];
-
-const activities = [
-  {
-    title: "New Farm Registered",
-    description: "FRM005 added by Officer.",
-    date: "Today",
-  },
-  {
-    title: "Soil Survey Updated",
-    description: "Black soil confirmed for FRM002.",
-    date: "Yesterday",
-  },
-  {
-    title: "Irrigation Changed",
-    description: "Sprinkler upgraded to Drip.",
-    date: "2 Days Ago",
-  },
-  {
-    title: "Harvest Completed",
-    description: "Rice harvested from FRM003.",
-    date: "4 Days Ago",
-  },
-];
-const officer = {
-
-    name:"Rajesh Kumar",
-
-    designation:"Agriculture Officer"};
-  const farms = [
-
-    {
-      id:"FRM001",
-      owner:"Ramesh Kumar",
-      village:"Hyderabad",
-      area:"4.5 Acres",
-      crop:"Rice",
-      soil:"Black Soil",
-      irrigation:"Drip",
-      status:"Active",
-      cultivated:"82%",
-      unused:"18%",
-      survey:"SRY-2045",
-      water:"Canal",
-      stage:"Flowering",
-      harvest:"15 Sept 2026",
-      type:"Organic"
-    },
-
-    {
-      id:"FRM002",
-      owner:"Lakshmi Devi",
-      village:"Warangal",
-      area:"6 Acres",
-      crop:"Cotton",
-      soil:"Red Soil",
-      irrigation:"Rain-fed",
-      status:"Active",
-      cultivated:"90%",
-      unused:"10%",
-      survey:"SRY-2087",
-      water:"Rain",
-      stage:"Vegetative",
-      harvest:"30 Oct 2026",
-      type:"Conventional"
-    },
-
-    {
-      id:"FRM003",
-      owner:"Mahesh Reddy",
-      village:"Karimnagar",
-      area:"3 Acres",
-      crop:"Maize",
-      soil:"Loamy Soil",
-      irrigation:"Sprinkler",
-      status:"Active",
-      cultivated:"76%",
-      unused:"24%",
-      survey:"SRY-3032",
-      water:"Borewell",
-      stage:"Harvest Ready",
-      harvest:"05 Aug 2026",
-      type:"Organic"
-    },
-
-    {
-      id:"FRM004",
-      owner:"Suresh",
-      village:"Nizamabad",
-      area:"8 Acres",
-      crop:"Groundnut",
-      soil:"Clay Soil",
-      irrigation:"Canal",
-      status:"Active",
-      cultivated:"88%",
-      unused:"12%",
-      survey:"SRY-4105",
-      water:"Canal",
-      stage:"Seedling",
-      harvest:"20 Nov 2026",
-      type:"Conventional"
-    }
-
-  ];
-
-  return(
-
-<div className="officer-container">
-
-<div
-className={`sidebar-overlay ${
-showSidebar ? "show-overlay" : ""
-}`}
-onClick={()=>setShowSidebar(false)}
-></div>
-
-<aside
-className={`officer-sidebar ${
-showSidebar ? "show-sidebar" : ""
-}`}
->
-
-<div className="sidebar-header">
-
-<h2>AgriSmart</h2>
-
-<p>Farm Management</p>
-
-</div>
-
-<nav className="sidebar-menu">
-
-{menuItems.map((item,index)=>(
-
-<div
-key={index}
-className={`sidebar-menu-item ${
-item.name==="Farms"
-?"active-menu":""
-}`}
-onClick={()=>navigate(item.path)}
->
-
-<div className="menu-icon">
-
-{item.icon}
-
-</div>
-
-<span>
-
-{item.name}
-
-</span>
-
-</div>
-
-))}
-
-</nav>
-
-</aside>
-
-<div className="dashboard-main">
-
-<header className="dashboard-navbar">
-
-<div className="navbar-left">
-
-<div
-className="menu-toggle-btn"
-onClick={()=>setShowSidebar(true)}
->
-
-<FaBars/>
-
-</div>
-
-<div className="search-container">
-
-<FaSearch className="search-icon"/>
-
-<input
-type="text"
-placeholder="Search Farms..."
-className="search-input"
-/>
-
-</div>
-
-</div>
-
-<div className="navbar-right">
-
-<div className="notification-btn">
-
-<FaBell/>
-
-</div>
-
-<div className="profile-section">
-
-<FaUserCircle className="profile-avatar"/>
-
-<div>
-
-
-<h4>{officer.name}</h4>
-
-<p>{officer.designation}</p>
-
-</div>
-
-</div>
-
-</div>
-
-</header>
-
-<section className="stats-section">
-
-{stats.map((item,index)=>(
-
-<div
-key={index}
-className="stats-card"
->
-
-<div
-className="stats-icon"
-style={{
-background:item.bg,
-color:item.color
-}}
->
-
-{item.icon}
-
-</div>
-
-<div className="stats-content">
-
-<h4>{item.title}</h4>
-
-<h2>{item.value}</h2>
-
-</div>
-
-</div>
-
-))}
-
-</section>
-
-<section className="farm-section">
-
-<div className="farm-list-card">
-
-<h2 className="section-title">
-
-Farm Registry
-
-</h2>
-
-<div className="farm-scroll">
-
-{farms.map((farm,index)=>(
-
-<div
-key={index}
-className={`farm-item ${
-selectedFarm===index
-? "active-farm":""
-}`}
-onClick={()=>setSelectedFarm(index)}
->
-
-<h3>{farm.id}</h3>
-
-<p><strong>Owner :</strong> {farm.owner}</p>
-
-<p><strong>Area :</strong> {farm.area}</p>
-
-<p><strong>Crop :</strong> {farm.crop}</p>
-
-<p><strong>Soil :</strong> {farm.soil}</p>
-
-<p><strong>Status :</strong> {farm.status}</p>
-
-</div>
-
-))}
-
-</div>
-
-</div>
-      {/*=========================================
-                FARM DETAILS
-      =========================================*/}
-
-      <div className="farm-details-card">
-
-        <div className="details-header">
-
-          <div>
-
-            <h2>{farms[selectedFarm].id}</h2>
-
-            <p>{farms[selectedFarm].owner}</p>
-
-          </div>
-
-          <span className="status-badge">
-
-            {farms[selectedFarm].status}
-
-          </span>
-
-        </div>
-
-        <div className="farm-details-grid">
-
-          <div className="detail-box">
-
-            <label>Village</label>
-
-            <h4>{farms[selectedFarm].village}</h4>
-
-          </div>
-
-          <div className="detail-box">
-
-            <label>Survey Number</label>
-
-            <h4>{farms[selectedFarm].survey}</h4>
-
-          </div>
-
-          <div className="detail-box">
-
-            <label>Total Area</label>
-
-            <h4>{farms[selectedFarm].area}</h4>
-
-          </div>
-
-          <div className="detail-box">
-
-            <label>Current Crop</label>
-
-            <h4>{farms[selectedFarm].crop}</h4>
-
-          </div>
-
-          <div className="detail-box">
-
-            <label>Soil Type</label>
-
-            <h4>{farms[selectedFarm].soil}</h4>
-
-          </div>
-
-          <div className="detail-box">
-
-            <label>Irrigation</label>
-
-            <h4>{farms[selectedFarm].irrigation}</h4>
-
-          </div>
-
-          <div className="detail-box">
-
-            <label>Water Source</label>
-
-            <h4>{farms[selectedFarm].water}</h4>
-
-          </div>
-
-          <div className="detail-box">
-
-            <label>Growth Stage</label>
-
-            <h4>{farms[selectedFarm].stage}</h4>
-
-          </div>
-
-          <div className="detail-box">
-
-            <label>Expected Harvest</label>
-
-            <h4>{farms[selectedFarm].harvest}</h4>
-
-          </div>
-
-          <div className="detail-box">
-
-            <label>Farm Type</label>
-
-            <h4>{farms[selectedFarm].type}</h4>
-
-          </div>
-
-        </div>
-
-        {/*=========================================
-              LAND UTILIZATION
-        =========================================*/}
-
-        <div className="utilization-card">
-
-          <div className="utilization-header">
-
-            <h3>Land Utilization</h3>
-
-          </div>
-
-          <div className="progress-item">
-
-            <div className="progress-info">
-
-              <span>Cultivated Area</span>
-
-              <strong>
-
-                {farms[selectedFarm].cultivated}
-
-              </strong>
-
-            </div>
-
-            <div className="progress-bar">
-
-              <div
-                className="progress-fill cultivated-fill"
-                style={{
-                  width: farms[selectedFarm].cultivated
-                }}
-              ></div>
-
-            </div>
-
-          </div>
-
-          <div className="progress-item">
-
-            <div className="progress-info">
-
-              <span>Unused Area</span>
-
-              <strong>
-
-                {farms[selectedFarm].unused}
-
-              </strong>
-
-            </div>
-
-            <div className="progress-bar">
-
-              <div
-                className="progress-fill unused-fill"
-                style={{
-                  width: farms[selectedFarm].unused
-                }}
-              ></div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </section>
-
-    {/*=========================================
-              ANALYTICS
-    =========================================*/}
-
-    <section className="farm-analytics">
-
-      {/*========== LINE CHART ==========*/}
-
-      <div className="chart-card cultivation-card">
-
-        <div className="chart-header">
-
-          <h3>Area Under Cultivation</h3>
-
-        </div>
-
-        <ResponsiveContainer width="100%" height={320}>
-
-          <LineChart data={cultivationTrend}>
-
-            <CartesianGrid strokeDasharray="3 3"/>
-
-            <XAxis dataKey="year"/>
-
-            <YAxis/>
-
-            <Tooltip/>
-
-            <Legend/>
-
-            <Line
-              type="monotone"
-              dataKey="area"
-              stroke="#2563eb"
-              strokeWidth={4}
-            />
-
-          </LineChart>
-
-        </ResponsiveContainer>
-
-      </div>
-
-      {/*========== SOIL TYPE PIE ==========*/}
-
-      <div className="chart-card">
-
-        <div className="chart-header">
-
-          <h3>Soil Distribution</h3>
-
-        </div>
-
-        <ResponsiveContainer width="100%" height={300}>
-
-          <PieChart>
-
-            <Pie
-
-              data={soilDistribution}
-
-              dataKey="value"
-
-              nameKey="name"
-
-              innerRadius={50}
-
-              outerRadius={90}
-
-            >
-
-              {soilDistribution.map((item,index)=>(
-
-                <Cell
-                  key={index}
-                  fill={pieColors[index]}
-                />
-
-              ))}
-
-            </Pie>
-
-            <Tooltip/>
-
-            <Legend/>
-
-          </PieChart>
-
-        </ResponsiveContainer>
-
-      </div>
-
-      {/*========== IRRIGATION PIE ==========*/}
-
-      <div className="chart-card">
-
-        <div className="chart-header">
-
-          <h3>Irrigation Types</h3>
-
-        </div>
-
-        <ResponsiveContainer width="100%" height={300}>
-
-          <PieChart>
-
-            <Pie
-
-              data={irrigationDistribution}
-
-              dataKey="value"
-
-              nameKey="name"
-
-              innerRadius={50}
-
-              outerRadius={90}
-
-            >
-
-              {irrigationDistribution.map((item,index)=>(
-
-                <Cell
-                  key={index}
-                  fill={pieColors[index]}
-                />
-
-              ))}
-
-            </Pie>
-
-            <Tooltip/>
-
-            <Legend/>
-
-          </PieChart>
-
-        </ResponsiveContainer>
-
-      </div>
-
-    </section>
-        {/*=========================================
-            FARM INSIGHTS
-    =========================================*/}
-
-    <section className="farm-bottom-grid">
-
-      {/*========================
-        FARM SIZE DISTRIBUTION
-      ========================*/}
-
-      <div className="chart-card">
-
-        <div className="chart-header">
-
-          <h3>Farm Size Distribution</h3>
-
-        </div>
-
-        <ResponsiveContainer width="100%" height={300}>
-
-          <BarChart data={farmSizeData}>
-
-            <CartesianGrid strokeDasharray="3 3"/>
-
-            <XAxis dataKey="size"/>
-
-            <YAxis/>
-
-            <Tooltip/>
-
-            <Bar
-              dataKey="farms"
-              radius={[8,8,0,0]}
-              fill="#2563eb"
-            />
-
-          </BarChart>
-
-        </ResponsiveContainer>
-
-      </div>
-
-      {/*========================
-        ORGANIC vs CONVENTIONAL
-      ========================*/}
-
-      <div className="chart-card">
-
-        <div className="chart-header">
-
-          <h3>Organic vs Conventional</h3>
-
-        </div>
-
-        <ResponsiveContainer width="100%" height={300}>
-
-          <PieChart>
-
-            <Pie
-
-              data={organicData}
-
-              dataKey="value"
-
-              nameKey="name"
-
-              innerRadius={60}
-
-              outerRadius={95}
-
-            >
-
-              {organicData.map((item,index)=>(
-
-                <Cell
-
-                  key={index}
-
-                  fill={pieColors[index]}
-
-                />
-
-              ))}
-
-            </Pie>
-
-            <Tooltip/>
-
-            <Legend/>
-
-          </PieChart>
-
-        </ResponsiveContainer>
-
-      </div>
-
-      {/*========================
-            LAND UTILIZATION
-      ========================*/}
-
-      <div className="chart-card">
-
-        <div className="chart-header">
-
-          <h3>Land Utilization</h3>
-
-        </div>
-
-        <ResponsiveContainer width="100%" height={300}>
-
-          <PieChart>
-
-            <Pie
-
-              data={landUtilizationData}
-
-              dataKey="value"
-
-              nameKey="name"
-
-              innerRadius={65}
-
-              outerRadius={95}
-
-            >
-
-              {landUtilizationData.map((item,index)=>(
-
-                <Cell
-
-                  key={index}
-
-                  fill={pieColors[index]}
-
-                />
-
-              ))}
-
-            </Pie>
-
-            <Tooltip/>
-
-            <Legend/>
-
-          </PieChart>
-
-        </ResponsiveContainer>
-
-      </div>
-
-    </section>
-
-    {/*=========================================
-            FARM SUMMARY
-    =========================================*/}
-
-    <section className="analytics-summary">
-
-      <div className="summary-card">
-
-        <FaTractor className="summary-icon"/>
-
-        <div>
-
-          <h4>Largest Farm</h4>
-
-          <h2>18 Acres</h2>
-
-        </div>
-
-      </div>
-
-      <div className="summary-card">
-
-        <FaSeedling className="summary-icon"/>
-
-        <div>
-
-          <h4>Most Cultivated Crop</h4>
-
-          <h2>Rice</h2>
-
-        </div>
-
-      </div>
-
-      <div className="summary-card">
-
-        <FaTint className="summary-icon"/>
-
-        <div>
-
-          <h4>Most Used Irrigation</h4>
-
-          <h2>Drip Irrigation</h2>
-
-        </div>
-
-      </div>
-
-      <div className="summary-card">
-
-        <MdAgriculture className="summary-icon"/>
-
-        <div>
-
-          <h4>Average Yield</h4>
-
-          <h2>29 Qtl/Acre</h2>
-
-        </div>
-
-      </div>
-
-    </section>
-
-    {/*=========================================
-            RECENT ACTIVITIES
-    =========================================*/}
-
-    <section className="activity-card">
-
-      <div className="chart-header">
-
-        <h3>Recent Farm Activities</h3>
-
-      </div>
-
-      <div className="timeline">
-
-        {activities.map((item,index)=>(
-
-          <div
-            key={index}
-            className="timeline-item"
-          >
-
-            <div className="timeline-dot"></div>
-
-            <div className="timeline-content">
-
-              <h4>
-
-                {item.title}
-
-              </h4>
-
-              <p>
-
-                {item.description}
-
-              </p>
-
-              <span>
-
-                {item.date}
-
-              </span>
-
-            </div>
-
-          </div>
-
-        ))}
-
-      </div>
-
-    </section>
-
-  </div>
-
-</div>
-
-);
-
+const STATUS_BADGE = {
+  ACTIVE:    { bg: "#dcfce7", color: "#15803d" },
+  HARVESTED: { bg: "#dbeafe", color: "#1d4ed8" },
+  FAILED:    { bg: "#fee2e2", color: "#dc2626" },
+  PENDING:   { bg: "#fef3c7", color: "#b45309" },
 };
 
-export default OFarm;
+export default function OFarm() {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  const user   = useSelector(s => s.agri.user);
+  const token  = useSelector(s => s.agri.token);
+  const reduxFarms = useSelector(s => s.agri.farms) || [];
+  const reduxCrops = useSelector(s => s.agri.crops) || [];
+  const usersList  = useSelector(s => s.agri.usersList) || [];
+
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [activeTab,   setActiveTab]   = useState("farms");
+  const [search,      setSearch]      = useState("");
+
+  // Use Redux data (already fetched in App.jsx) — no re-fetch needed
+  const farms = reduxFarms;
+  const crops = reduxCrops;
+
+  // Panel state
+  const [selectedFarm,  setSelectedFarm]  = useState(null);
+  const [selectedCrop,  setSelectedCrop]  = useState(null);
+
+  const handleLogout = () => {
+    dispatch(setUser(null));
+    dispatch(setToken(null));
+    toast.info("Logged out successfully.");
+    navigate("/login");
+  };
+
+  /* helpers */
+  const getFarmerName = (userId) => {
+    const f = usersList.find(u => u.userId === userId);
+    return f?.name || `Farmer #${userId}`;
+  };
+
+  const getCropsForFarm = (farmId) => crops.filter(c => c.farmId === farmId);
+
+  /* filtered lists */
+  const q = search.toLowerCase();
+  const filteredFarms = farms.filter(f =>
+    (f.farmName || "").toLowerCase().includes(q) ||
+    (f.location || "").toLowerCase().includes(q) ||
+    (f.soilType || "").toLowerCase().includes(q)
+  );
+  const filteredCrops = crops.filter(c =>
+    (c.cropName || "").toLowerCase().includes(q) ||
+    (c.status || "").toLowerCase().includes(q)
+  );
+
+  return (
+    <div className="officer-container">
+
+      {/* Overlay */}
+      <div className={`sidebar-overlay ${showSidebar ? "show-overlay" : ""}`} onClick={() => setShowSidebar(false)} />
+
+      {/* Sidebar */}
+      <aside className={`officer-sidebar ${showSidebar ? "show-sidebar" : ""}`}>
+        <div className="sidebar-header">
+          <h2>AgriSmart</h2>
+          <p>Farms & Crops Desk</p>
+        </div>
+        <nav className="sidebar-menu">
+          {MENU.map(item => (
+            <div key={item.key} className={`sidebar-menu-item ${item.key === "farms" ? "active-menu" : ""}`} onClick={() => navigate(item.path)}>
+              <div className="menu-icon">{item.icon}</div>
+              <span>{item.name}</span>
+            </div>
+          ))}
+          <div className="sidebar-menu-item sidebar-logout-item" onClick={handleLogout}>
+            <div className="menu-icon"><FaSignOutAlt /></div>
+            <span>Logout</span>
+          </div>
+        </nav>
+      </aside>
+
+      {/* Main */}
+      <div className="dashboard-main">
+
+        {/* Navbar */}
+        <header className="dashboard-navbar">
+          <div className="navbar-left">
+            <div className="menu-toggle-btn" onClick={() => setShowSidebar(true)}><FaBars /></div>
+            <div className="search-container">
+              <FaSearch className="search-icon" />
+              <input
+                className="search-input"
+                type="text"
+                placeholder={activeTab === "farms" ? "Search farms..." : "Search crops..."}
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="navbar-right">
+            <button className="notification-btn" onClick={() => navigate("/officer/onification")}><FaBell /></button>
+            <div className="profile-section" onClick={() => navigate("/officer/oprofile")} style={{ cursor: "pointer" }}>
+              <FaUserCircle className="profile-avatar" />
+              <div className="profile-info">
+                <h4>{user?.name || "Officer"}</h4>
+                <p>Agriculture Officer</p>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Stat Cards */}
+        <section className="stats-section" style={{ marginBottom: 24 }}>
+          {[
+            { title: "Total Farms",   value: farms.length,                         icon: <MdAgriculture />, color: "#15803d", bg: "#dcfce7" },
+            { title: "Total Crops",   value: crops.length,                          icon: <FaLeaf />,       color: "#f59e0b", bg: "#fef3c7" },
+            { title: "Active Crops",  value: crops.filter(c => c.status === "ACTIVE").length, icon: <FaSeedling />, color: "#2563eb", bg: "#dbeafe" },
+            { title: "Total Area",    value: `${farms.reduce((s, f) => s + (Number(f.area) || 0), 0).toFixed(1)} ac`, icon: <FaMapMarkerAlt />, color: "#8b5cf6", bg: "#ede9fe" },
+          ].map((s, i) => (
+            <div key={i} className="stats-card">
+              <div className="stats-icon" style={{ background: s.bg, color: s.color }}>{s.icon}</div>
+              <div className="stats-content"><h4>{s.title}</h4><h2>{s.value}</h2></div>
+            </div>
+          ))}
+        </section>
+
+        {/* Tab Bar */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 20, background: "#f1f5f9", borderRadius: 12, padding: 4, width: "fit-content" }}>
+          {[
+            { key: "farms", label: `Farms (${farms.length})` },
+            { key: "crops", label: `Crops (${crops.length})` },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => { setActiveTab(tab.key); setSelectedFarm(null); setSelectedCrop(null); setSearch(""); }}
+              style={{
+                padding: "8px 22px", borderRadius: 10, border: "none", fontWeight: 700,
+                fontSize: 13, cursor: "pointer", transition: "all 0.2s",
+                background: activeTab === tab.key ? "#16a34a" : "transparent",
+                color: activeTab === tab.key ? "#fff" : "#64748b",
+              }}
+            >{tab.label}</button>
+          ))}
+        </div>
+
+        {/* Content: Two-column layout when item selected */}
+        <div style={{ display: "grid", gridTemplateColumns: selectedFarm || selectedCrop ? "1fr 1fr" : "1fr", gap: 24 }}>
+
+          {/* Left: Table */}
+          <div className="farmer-table-container">
+            {activeTab === "farms" ? (
+              <>
+                <div style={{ marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <strong style={{ color: "#0f172a", fontSize: 14 }}>{filteredFarms.length} farms</strong>
+                </div>
+                {filteredFarms.length > 0 ? (
+                  <table className="farmer-table">
+                    <thead>
+                      <tr>
+                        <th>Farm Name</th>
+                        <th>Owner</th>
+                        <th>Area</th>
+                        <th>Soil Type</th>
+                        <th>Water Source</th>
+                        <th>Location</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredFarms.map(f => (
+                        <tr
+                          key={f.farmId}
+                          style={{ cursor: "pointer", background: selectedFarm?.farmId === f.farmId ? "#f0fdf4" : "" }}
+                          onClick={() => { setSelectedFarm(f); setSelectedCrop(null); }}
+                        >
+                          <td><strong>{f.farmName}</strong></td>
+                          <td>{getFarmerName(f.userId)}</td>
+                          <td>{f.area} ac</td>
+                          <td>{f.soilType || "-"}</td>
+                          <td>{f.waterSource || "-"}</td>
+                          <td>
+                            <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+                              <FaMapMarkerAlt style={{ color: "#16a34a", fontSize: 10 }} />
+                              {f.location || "-"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontWeight: 600 }}>No farms found</div>
+                )}
+              </>
+            ) : (
+              /* Crops Table */
+              <>
+                <div style={{ marginBottom: 14 }}>
+                  <strong style={{ color: "#0f172a", fontSize: 14 }}>{filteredCrops.length} crops</strong>
+                </div>
+                {filteredCrops.length > 0 ? (
+                  <table className="farmer-table">
+                    <thead>
+                      <tr>
+                        <th>Crop Name</th>
+                        <th>Farmer</th>
+                        <th>Farm</th>
+                        <th>Status</th>
+                        <th>Planted</th>
+                        <th>Harvest</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredCrops.map(c => {
+                        const parentFarm = farms.find(f => f.farmId === c.farmId);
+                        const badge = STATUS_BADGE[c.status] || STATUS_BADGE.PENDING;
+                        return (
+                          <tr
+                            key={c.cropId}
+                            style={{ cursor: "pointer", background: selectedCrop?.cropId === c.cropId ? "#f0fdf4" : "" }}
+                            onClick={() => { setSelectedCrop(c); setSelectedFarm(null); }}
+                          >
+                            <td><strong>{c.cropName}</strong></td>
+                            <td>{getFarmerName(parentFarm?.userId)}</td>
+                            <td>{parentFarm?.farmName || "-"}</td>
+                            <td>
+                              <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: badge.bg, color: badge.color }}>
+                                {c.status}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: 12, color: "#64748b" }}>{c.plantedDate || "-"}</td>
+                            <td style={{ fontSize: 12, color: "#64748b" }}>{c.expectedHarvestDate || "-"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontWeight: 600 }}>No crops found</div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Right: Detail Panel */}
+          {(selectedFarm || selectedCrop) && (
+            <div style={{ background: "#fff", borderRadius: 18, border: "1.5px solid #e2e8f0", padding: 24, boxShadow: "0 4px 24px rgba(0,0,0,0.06)", alignSelf: "start" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#0f172a" }}>
+                  {selectedFarm ? selectedFarm.farmName : selectedCrop?.cropName}
+                </h3>
+                <button onClick={() => { setSelectedFarm(null); setSelectedCrop(null); }} style={{ background: "transparent", border: "none", fontSize: 18, cursor: "pointer", color: "#94a3b8" }}>
+                  <FaTimes />
+                </button>
+              </div>
+
+              {selectedFarm && (
+                <>
+                  {/* Farm Details */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                    {[
+                      { label: "Owner",       value: getFarmerName(selectedFarm.userId) },
+                      { label: "Area",        value: `${selectedFarm.area} acres` },
+                      { label: "Soil Type",   value: selectedFarm.soilType || "-" },
+                      { label: "Water Source",value: selectedFarm.waterSource || "-" },
+                      { label: "Location",    value: selectedFarm.location || "-" },
+                      { label: "Coordinates", value: selectedFarm.latitude ? `${selectedFarm.latitude}°N, ${selectedFarm.longitude}°E` : "-" },
+                    ].map((item, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "9px 12px", background: "#f8fafc", borderRadius: 9, border: "1px solid #e2e8f0" }}>
+                        <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{item.label}</span>
+                        <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 700 }}>{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Map */}
+                  {selectedFarm.latitude && selectedFarm.longitude && (
+                    <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #e2e8f0", marginBottom: 20 }}>
+                      <iframe
+                        title="Farm Location"
+                        width="100%"
+                        height="200"
+                        style={{ border: "none" }}
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${selectedFarm.longitude - 0.01},${selectedFarm.latitude - 0.01},${selectedFarm.longitude + 0.01},${selectedFarm.latitude + 0.01}&layer=mapnik&marker=${selectedFarm.latitude},${selectedFarm.longitude}`}
+                      />
+                    </div>
+                  )}
+
+                  {/* Registered crops */}
+                  <div>
+                    <h4 style={{ fontSize: 13, fontWeight: 700, color: "#334155", marginBottom: 10 }}>Registered Crops ({getCropsForFarm(selectedFarm.farmId).length})</h4>
+                    {getCropsForFarm(selectedFarm.farmId).length === 0 ? (
+                      <p style={{ fontSize: 13, color: "#94a3b8" }}>No crops registered on this farm.</p>
+                    ) : getCropsForFarm(selectedFarm.farmId).map(c => {
+                      const badge = STATUS_BADGE[c.status] || STATUS_BADGE.PENDING;
+                      return (
+                        <div key={c.cropId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "#f0fdf4", borderRadius: 9, marginBottom: 6, border: "1px solid #bbf7d0" }}>
+                          <strong style={{ fontSize: 13, color: "#15803d" }}>{c.cropName}</strong>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: badge.bg, color: badge.color }}>{c.status}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {selectedCrop && (() => {
+                const parentFarm = farms.find(f => f.farmId === selectedCrop.farmId);
+                const badge = STATUS_BADGE[selectedCrop.status] || STATUS_BADGE.PENDING;
+                return (
+                  <>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                      {[
+                        { label: "Farmer",          value: getFarmerName(parentFarm?.userId) },
+                        { label: "Farm",            value: parentFarm?.farmName || "-" },
+                        { label: "Status",          value: <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: badge.bg, color: badge.color }}>{selectedCrop.status}</span> },
+                        { label: "Planted Date",    value: selectedCrop.plantedDate || "-" },
+                        { label: "Expected Harvest",value: selectedCrop.expectedHarvestDate || "-" },
+                        { label: "Duration",        value: selectedCrop.duration ? `${selectedCrop.duration} days` : "-" },
+                      ].map((item, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", background: "#f8fafc", borderRadius: 9, border: "1px solid #e2e8f0" }}>
+                          <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{item.label}</span>
+                          <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 700 }}>{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Parent Farm Map */}
+                    {parentFarm?.latitude && parentFarm?.longitude && (
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 700, color: "#334155", marginBottom: 10 }}>Farm Location</h4>
+                        <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #e2e8f0" }}>
+                          <iframe
+                            title="Crop Farm Location"
+                            width="100%"
+                            height="180"
+                            style={{ border: "none" }}
+                            src={`https://www.openstreetmap.org/export/embed.html?bbox=${parentFarm.longitude - 0.01},${parentFarm.latitude - 0.01},${parentFarm.longitude + 0.01},${parentFarm.latitude + 0.01}&layer=mapnik&marker=${parentFarm.latitude},${parentFarm.longitude}`}
+                          />
+                        </div>
+                        {selectedCrop.description && (
+                          <p style={{ marginTop: 12, fontSize: 13, color: "#475569", background: "#f8fafc", padding: "10px 14px", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                            {selectedCrop.description}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -6,7 +6,6 @@ import com.agrismart.weather.entity.WeatherHistory;
 import com.agrismart.weather.service.WeatherService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,12 +13,13 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/weather")
-@RequiredArgsConstructor
 @Tag(name = "Weather Intelligence", description = "Endpoints for weather lookup, forecast extraction, and historical logging")
 public class WeatherController {
 
     private final WeatherService weatherService;
-
+    public WeatherController(WeatherService weatherService) {
+    	this.weatherService=weatherService;
+    }
     @GetMapping("/current/{farmId}")
     @Operation(summary = "Get current weather for farm", description = "Retrieve current weather readings for a farm (using its latitude and longitude) and log the values in historical records.")
     public ResponseEntity<WeatherResponse> getCurrentWeather(

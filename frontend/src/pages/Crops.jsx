@@ -22,11 +22,10 @@ import {
 export default function Crops() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("active"); // 'active', 'harvested', 'failed', 'all'
 
   const crops = useSelector((state) => state.agri.crops) || [];
   const farms = useSelector((state) => state.agri.farms) || [];
-
-  const activeCrops = crops.filter((c) => c.status === "ACTIVE");
 
   const cropImages = {
     rice: "https://images.pexels.com/photos/236474/pexels-photo-236474.jpeg",
@@ -64,15 +63,22 @@ export default function Crops() {
     return "Mature Stage";
   };
 
-  const getGrowthStage = (name, days, duration) => {
-    if ((name || "").toLowerCase().includes("rice") || (name || "").toLowerCase().includes("paddy")) {
-      return getRiceGrowthStage(days);
+  const getGrowthStage = (c) => {
+    if (c.status === "HARVESTED") return "Crop Harvested";
+    if (c.status === "FAILED") return "Crop Failed";
+
+    const planted = new Date(c.plantedDate);
+    const daysPassed = Math.floor((Date.now() - planted.getTime()) / (1000 * 60 * 60 * 24));
+    const daysPassedClamped = Math.max(0, daysPassed);
+
+    if ((c.cropName || "").toLowerCase().includes("rice") || (c.cropName || "").toLowerCase().includes("paddy")) {
+      return getRiceGrowthStage(daysPassedClamped);
     }
-    return getGeneralGrowthStage(days, duration);
+    return getGeneralGrowthStage(daysPassedClamped, c.duration);
   };
 
-  // Compile crop list data dynamically
-  const cropsList = activeCrops.map((c) => {
+  // Compile full crop list data dynamically
+  const cropsList = crops.map((c) => {
     const farm = farms.find((f) => f.farmId === c.farmId);
     const farmName = farm ? farm.farmName : "Registered Plot";
     const farmArea = farm ? `${farm.area} Acres` : "N/A";
@@ -81,42 +87,66 @@ export default function Crops() {
     const daysPassed = Math.floor((Date.now() - planted.getTime()) / (1000 * 60 * 60 * 24));
     const daysPassedClamped = Math.max(0, daysPassed);
 
-    const progress = Math.min(100, Math.max(0, Math.round((daysPassedClamped / c.duration) * 100)));
-    const stage = getGrowthStage(c.cropName, daysPassedClamped, c.duration);
-    const daysLeft = c.duration - daysPassedClamped;
-    const harvestStr = daysLeft > 0 ? `${daysLeft} Days` : "Ready";
+    let progress = 100;
+    let harvestStr = "N/A";
+
+    if (c.status === "ACTIVE") {
+      progress = Math.min(100, Math.max(0, Math.round((daysPassedClamped / c.duration) * 100)));
+      const daysLeft = c.duration - daysPassedClamped;
+      harvestStr = daysLeft > 0 ? `${daysLeft} Days` : "Ready";
+    } else if (c.status === "HARVESTED") {
+      progress = 100;
+      harvestStr = "Harvested";
+    } else if (c.status === "FAILED") {
+      progress = 0;
+      harvestStr = "Failed";
+    }
+
+    const stage = getGrowthStage(c);
 
     return {
       id: c.cropId,
       name: c.cropName,
       image: getCropImage(c.cropName),
       farm: farmName,
-      health: "Healthy", // Default status
+      status: c.status || "ACTIVE",
+      health: c.status === "FAILED" ? "Failed" : c.status === "HARVESTED" ? "Harvested" : "Healthy",
       progress,
       stage,
       area: farmArea,
       harvest: harvestStr,
-      yield: "N/A"
+      yield: c.yield ? `${c.yield} Tons` : "N/A"
     };
   });
 
-  const filteredCrops = cropsList.filter((crop) =>
-    crop.name.toLowerCase().includes(search.toLowerCase()) ||
-    crop.farm.toLowerCase().includes(search.toLowerCase())
-  );
+  // Filter by active tab & search query
+  const filteredCrops = cropsList.filter((crop) => {
+    const matchesSearch =
+      crop.name.toLowerCase().includes(search.toLowerCase()) ||
+      crop.farm.toLowerCase().includes(search.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    if (activeTab === "active") return crop.status === "ACTIVE";
+    if (activeTab === "harvested") return crop.status === "HARVESTED";
+    if (activeTab === "failed") return crop.status === "FAILED";
+    return true; // 'all'
+  });
 
   // Summary Metrics
-  const activeCount = cropsList.length;
-  const healthyCount = cropsList.filter(c => c.health === "Healthy").length;
+  const activeCount = crops.filter((c) => c.status === "ACTIVE").length;
+  const harvestedCount = crops.filter((c) => c.status === "HARVESTED").length;
+  const failedCount = crops.filter((c) => c.status === "FAILED").length;
+  const healthyCount = cropsList.filter((c) => c.health === "Healthy").length;
 
-  const harvestLefts = activeCrops.map((c) => {
+  const harvestLefts = crops.filter((c) => c.status === "ACTIVE").map((c) => {
     const days = c.duration - Math.floor((Date.now() - new Date(c.plantedDate).getTime()) / (1000 * 60 * 60 * 24));
     return days > 0 ? days : 0;
   });
   const nextHarvestStr = harvestLefts.length > 0 ? `${Math.min(...harvestLefts)} Days` : "N/A";
 
   // Calculate average yield from historical harvested crops
-  const completedCrops = crops.filter(c => c.status === "HARVESTED");
+  const completedCrops = crops.filter((c) => c.status === "HARVESTED");
   const totalYield = completedCrops.reduce((acc, c) => acc + (c.yield || 0), 0);
   const avgYieldStr = completedCrops.length > 0 ? `${(totalYield / completedCrops.length).toFixed(1)} Tons` : "0.0 Tons";
 
@@ -130,7 +160,7 @@ export default function Crops() {
           <div className="cropHeader">
             <div className="cropHeaderLeft">
               <h1>Crop Management</h1>
-              <p>Monitor all your active crops with AI-powered insights and live tracking.</p>
+              <p>Monitor active crops, review seasonal harvest logs, and manage yield performance.</p>
             </div>
             <button className="addCropBtn" onClick={() => navigate("/crops/add")}>
               <Plus size={18} />
@@ -176,20 +206,100 @@ export default function Crops() {
             </div>
           </div>
 
-          {/* SEARCH */}
-          <div className="searchBar">
-            <Search size={20} />
-            <input
-              type="text"
-              placeholder="Search crops..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          {/* SEARCH & FILTER BAR */}
+          <div style={{ display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "center", marginBottom: "20px" }}>
+            <div className="searchBar" style={{ flex: 1, minWidth: "260px", margin: 0 }}>
+              <Search size={20} />
+              <input
+                type="text"
+                placeholder="Search crops..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            {/* TAB BUTTONS */}
+            <div style={{ display: "flex", gap: "8px", background: "#f1f5f9", padding: "4px", borderRadius: "10px" }}>
+              <button
+                onClick={() => setActiveTab("active")}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  border: "none",
+                  fontWeight: "600",
+                  fontSize: "13.5px",
+                  cursor: "pointer",
+                  background: activeTab === "active" ? "var(--primary, #15803d)" : "transparent",
+                  color: activeTab === "active" ? "#ffffff" : "#64748b",
+                  transition: "all 0.2s"
+                }}
+              >
+                Active ({activeCount})
+              </button>
+
+              <button
+                onClick={() => setActiveTab("harvested")}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  border: "none",
+                  fontWeight: "600",
+                  fontSize: "13.5px",
+                  cursor: "pointer",
+                  background: activeTab === "harvested" ? "var(--primary, #15803d)" : "transparent",
+                  color: activeTab === "harvested" ? "#ffffff" : "#64748b",
+                  transition: "all 0.2s"
+                }}
+              >
+                Harvested ({harvestedCount})
+              </button>
+
+              {failedCount > 0 && (
+                <button
+                  onClick={() => setActiveTab("failed")}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    border: "none",
+                    fontWeight: "600",
+                    fontSize: "13.5px",
+                    cursor: "pointer",
+                    background: activeTab === "failed" ? "#dc2626" : "transparent",
+                    color: activeTab === "failed" ? "#ffffff" : "#64748b",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  Failed ({failedCount})
+                </button>
+              )}
+
+              <button
+                onClick={() => setActiveTab("all")}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  border: "none",
+                  fontWeight: "600",
+                  fontSize: "13.5px",
+                  cursor: "pointer",
+                  background: activeTab === "all" ? "var(--primary, #15803d)" : "transparent",
+                  color: activeTab === "all" ? "#ffffff" : "#64748b",
+                  transition: "all 0.2s"
+                }}
+              >
+                All Crops ({crops.length})
+              </button>
+            </div>
           </div>
 
-          {/* CURRENT CROPS */}
+          {/* SECTION TITLE */}
           <div className="sectionTitle">
-            <h2>Current Crops</h2>
+            <h2>
+              {activeTab === "active" && "Current Active Crops"}
+              {activeTab === "harvested" && "Harvested Crops History"}
+              {activeTab === "failed" && "Failed Crops Records"}
+              {activeTab === "all" && "All Crop Cultivation Records"}
+            </h2>
           </div>
 
           <div className="cropGrid">
@@ -203,20 +313,46 @@ export default function Crops() {
                         <h2>{crop.name}</h2>
                         <p>{crop.stage}</p>
                       </div>
-                      <span className={`cropStatus ${crop.health.toLowerCase()}`}>
-                        {crop.health}
+                      <span
+                        className={`cropStatus ${
+                          crop.status === "HARVESTED"
+                            ? "healthy"
+                            : crop.status === "FAILED"
+                            ? "attention"
+                            : crop.health.toLowerCase()
+                        }`}
+                        style={{
+                          background: crop.status === "HARVESTED" ? "#dcfce7" : "",
+                          color: crop.status === "HARVESTED" ? "#15803d" : ""
+                        }}
+                      >
+                        {crop.status}
                       </span>
                     </div>
 
                     <div className="progressSection">
                       <div className="progressHeader">
-                        <span>Growth Progress</span>
+                        <span>
+                          {crop.status === "HARVESTED"
+                            ? `Yield: ${crop.yield}`
+                            : crop.status === "FAILED"
+                            ? "Crop Failed"
+                            : "Growth Progress"}
+                        </span>
                         <span>{crop.progress}%</span>
                       </div>
                       <div className="progressBar">
                         <div
                           className="progressFill"
-                          style={{ width: `${crop.progress}%` }}
+                          style={{
+                            width: `${crop.progress}%`,
+                            backgroundColor:
+                              crop.status === "HARVESTED"
+                                ? "#16a34a"
+                                : crop.status === "FAILED"
+                                ? "#dc2626"
+                                : ""
+                          }}
                         ></div>
                       </div>
                     </div>
@@ -232,7 +368,7 @@ export default function Crops() {
                       </div>
                       <div>
                         <Calendar size={18} />
-                        <span>{crop.harvest}</span>
+                        <span>{crop.status === "HARVESTED" ? `Yield: ${crop.yield}` : crop.harvest}</span>
                       </div>
                     </div>
 
@@ -249,12 +385,20 @@ export default function Crops() {
             ) : (
               <div className="emptyCrop">
                 <Leaf size={70} />
-                <h2>No Crops Registered</h2>
-                <p>You haven't added any crops yet. Start by registering your first crop.</p>
-                <button className="addCropBtn" onClick={() => navigate("/crops/add")}>
-                  <Plus size={18} />
-                  Add Crop
-                </button>
+                <h2>No Crops Found</h2>
+                <p>
+                  {activeTab === "harvested"
+                    ? "No crops have been marked as harvested yet."
+                    : activeTab === "failed"
+                    ? "No failed crops recorded."
+                    : "You haven't added any crops matching this filter."}
+                </p>
+                {activeTab === "active" && (
+                  <button className="addCropBtn" onClick={() => navigate("/crops/add")}>
+                    <Plus size={18} />
+                    Add Crop
+                  </button>
+                )}
               </div>
             )}
           </div>

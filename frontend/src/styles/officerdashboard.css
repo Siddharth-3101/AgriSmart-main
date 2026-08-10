@@ -1,3 +1,5 @@
+@import "./officer_theme.css";
+
 *{
     margin:0;
     padding:0;
@@ -20,10 +22,10 @@ MAIN CONTAINER
 .officer-container{
 background:
     linear-gradient(135deg,
-    #0f172a 0%,
-    #1d4ed8 30%,
-    #2563eb 60%,
-    #60a5fa 100%);
+    #052e16 0%,
+    #064e3b 30%,
+    #047857 65%,
+    #059669 100%);
 
     display:flex;
 
@@ -56,15 +58,15 @@ SLIDING SIDEBAR
 
     height:100vh;
 
-    background:rgba(255,255,255,.28);
+    background:rgba(248, 250, 252, 0.88);
 
     backdrop-filter:blur(25px);
 
     -webkit-backdrop-filter:blur(25px);
 
-    border-right:1px solid rgba(255,255,255,.35);
+    border-right:1px solid rgba(22, 101, 52, 0.2);
 
-    box-shadow:0 20px 45px rgba(0,0,0,.08);
+    box-shadow:0 20px 45px rgba(0,0,0,.12);
 
     transition:.4s;
 
@@ -108,11 +110,11 @@ SLIDING SIDEBAR
 
 .sidebar-header h2{
 
-    color:#2563eb;
+    color:#15803d;
 
     font-size:30px;
 
-    font-weight:700;
+    font-weight:800;
 
 }
 
@@ -120,7 +122,9 @@ SLIDING SIDEBAR
 
     margin-top:8px;
 
-    color:#64748b;
+    color:#166534;
+
+    font-weight:600;
 
     margin-bottom:35px;
 
@@ -150,7 +154,9 @@ SLIDING SIDEBAR
 
     cursor:pointer;
 
-    color:#334155;
+    color:#166534;
+
+    font-weight:600;
 
     transition:.35s;
 
@@ -160,17 +166,27 @@ SLIDING SIDEBAR
 
     font-size:22px;
 
+    color:#15803d;
+
 }
 
 .sidebar-menu-item:hover,
 
 .active-menu{
 
-    background:linear-gradient(135deg,#2563eb,#3b82f6);
+    background:linear-gradient(135deg,#15803d,#166534);
 
     color:white;
 
     transform:translateX(5px);
+
+}
+
+.sidebar-menu-item:hover svg,
+
+.active-menu svg{
+
+    color:white;
 
 }
 
@@ -224,7 +240,7 @@ GLASS NAVBAR
 
     border-radius:16px;
 
-    background:linear-gradient(135deg,#2563eb,#3b82f6);
+    background:linear-gradient(135deg,#15803d,#166534);
 
     color:white;
 
@@ -238,7 +254,7 @@ GLASS NAVBAR
 
     cursor:pointer;
 
-    box-shadow:0 10px 25px rgba(37,99,235,.3);
+    box-shadow:0 10px 25px rgba(21,128,61,.3);
 
 }
 
@@ -304,7 +320,7 @@ GLASS NAVBAR
 
     background:rgba(255,255,255,.6);
 
-    color:#2563eb;
+    color:#15803d;
 
     cursor:pointer;
 
@@ -326,7 +342,7 @@ GLASS NAVBAR
 
     font-size:44px;
 
-    color:#2563eb;
+    color:#15803d;
 
 }
 
@@ -376,7 +392,7 @@ GLASS BANNER
 
     border-radius:25px;
 
-    background:linear-gradient(135deg,#2563eb,#3b82f6,#60a5fa);
+    background:linear-gradient(135deg,#14532d,#166534,#15803d);
 
     overflow:hidden;
 
@@ -390,7 +406,7 @@ GLASS BANNER
 
     position:relative;
 
-    box-shadow:0 20px 40px rgba(37,99,235,.25);
+    box-shadow:0 20px 40px rgba(20,83,45,.25);
 
 }
 
@@ -446,7 +462,7 @@ GLASS BANNER
 
     background:white;
 
-    color:#2563eb;
+    color:#166534;
 
     padding:12px 28px;
 

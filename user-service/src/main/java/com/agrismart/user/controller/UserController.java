@@ -5,20 +5,24 @@ import com.agrismart.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
-@RequiredArgsConstructor
 @Tag(name = "User Management", description = "Endpoints for user registration, authentication, and profile management")
 public class UserController {
 
     private final UserService userService;
-
+    public UserController(UserService userService) {
+    	this.userService=userService;
+    }
     @PostMapping("/register")
     @Operation(summary = "Register a new user", description = "Create a new user account with role FARMER, OFFICER, or ADMIN")
     public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
@@ -52,5 +56,19 @@ public class UserController {
     @Operation(summary = "Get user details by ID", description = "Retrieve public profile details of any user by their ID")
     public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
         return ResponseEntity.ok(userService.getUserById(id));
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('OFFICER', 'ADMIN')")
+    @Operation(summary = "Get all users", description = "Retrieve a paginated list of all users")
+    public ResponseEntity<Page<UserResponse>> getAllUsers(Pageable pageable) {
+        return ResponseEntity.ok(userService.getAllUsers(pageable));
+    }
+
+    @GetMapping("/farmers")
+    @PreAuthorize("hasAnyRole('OFFICER', 'ADMIN')")
+    @Operation(summary = "Get all farmers", description = "Retrieve an unpaginated list of all farmers")
+    public ResponseEntity<List<UserResponse>> getAllFarmers() {
+        return ResponseEntity.ok(userService.getAllFarmers());
     }
 }

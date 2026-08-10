@@ -1,3 +1,5 @@
+@import "./officer_theme.css";
+
 /*==================================================
                     GLOBAL
 ==================================================*/
@@ -10,18 +12,46 @@
 }
 
 .officer-container{
-
     display:flex;
-
     min-height:100vh;
+    background:#d8eadf !important;
+    color:#0f172a !important;
+}
 
-    background:linear-gradient(
-        135deg,
-        #071A52,
-        #0A4FCB,
-        #2563EB
-    );
+.profile-card,
+.profile-form-card,
+.account-card,
+.password-card {
+    background: #ffffff !important;
+    border-radius: 25px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+    padding: 30px !important;
+    color: #0f172a !important;
+}
 
+.profile-info h2,
+.profile-info h4,
+.card-header h2,
+.account-box h4,
+.detail-box h4 {
+    color: #0f172a !important;
+}
+
+.profile-info p,
+.card-header p,
+.account-box span,
+.detail-box span,
+.input-group label {
+    color: #475569 !important;
+    font-weight: 600 !important;
+}
+
+.detail-box,
+.account-box {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 18px !important;
 }
 
 .dashboard-main{
@@ -1147,3 +1177,13 @@
     }
 
 }
+/* -- Shared table + logout styles (auto-appended) -- */
+.farmer-table-container { background:#fff; border-radius:18px; border:1.5px solid #e2e8f0; overflow-x:auto; box-shadow:0 4px 20px rgba(0,0,0,.04); }
+.farmer-table { width:100%; border-collapse:collapse; font-size:13px; }
+.farmer-table thead { background:#f8fafc; border-bottom:2px solid #e2e8f0; }
+.farmer-table th { padding:14px 18px; text-align:left; color:#334155; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+.farmer-table td { padding:14px 18px; color:#1e293b; border-top:1px solid #f1f5f9; font-weight:500; }
+.farmer-table tbody tr { transition:background .2s; }
+.farmer-table tbody tr:hover { background:#f0fdf4; }
+.sidebar-logout-item { color:#fca5a5 !important; border-top:1px solid rgba(255,255,255,.1); margin-top:20px !important; }
+.sidebar-logout-item:hover { background:rgba(239,68,68,.18) !important; }

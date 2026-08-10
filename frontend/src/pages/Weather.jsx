@@ -306,13 +306,6 @@ export default function Weather() {
               <div className="page-line"></div>
               <span>{String(weatherData.length).padStart(2, "0")}</span>
             </div>
-
-            <div className="weather-scroll-indicator">
-              <div className="scroll-mouse">
-                <div className="scroll-wheel"></div>
-              </div>
-              <p>Scroll</p>
-            </div>
           </div>
         </div>
       </div>

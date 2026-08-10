@@ -8,7 +8,6 @@ import com.agrismart.crop.entity.CropStatus;
 import com.agrismart.crop.exception.BadRequestException;
 import com.agrismart.crop.exception.ResourceNotFoundException;
 import com.agrismart.crop.repository.CropRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -24,12 +23,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class CropService {
 
     private final CropRepository cropRepository;
     private final RestClient.Builder restClientBuilder;
-
+    public CropService(CropRepository cropRepository, RestClient.Builder restClientBuilder) {
+        this.cropRepository = cropRepository;
+        this.restClientBuilder = restClientBuilder;
+    }
     private RestClient getFarmRestClient() {
         return restClientBuilder.baseUrl("http://localhost:8082").build();
     }

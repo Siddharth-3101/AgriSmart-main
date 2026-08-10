@@ -73,28 +73,56 @@ function Register() {
     };
 
     try {
-      const res = await fetch("http://localhost:8081/api/auth/register", {
+      const res = await fetch("http://localhost:8081/api/users/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       if (res.ok) {
-        toast.success("Registration Successful!");
+        toast.success("Registration Successful! Please log in.");
         setTimeout(() => {
           navigate("/login");
-        }, 2000);
+        }, 1500);
+        return;
       } else {
         const err = await res.json();
-        toast.error(err.message || "Registration failed. Try again.");
+        let errMsg = "Registration failed. Try again.";
+        if (err.message) {
+          errMsg = err.message;
+        } else if (err && typeof err === "object") {
+          errMsg = Object.values(err).join(", ");
+        }
+        toast.error(errMsg);
+        return;
       }
     } catch (err) {
       console.warn("Backend offline. Simulating registration.", err);
-      toast.success("Registration Simulated successfully (Demo Mode)!");
-      setTimeout(() => {
-        navigate("/login");
-      }, 2000);
     }
+
+    // Demo Mode Persistence
+    const demoUser = {
+      userId: Date.now(),
+      name: formData.fullName,
+      email: formData.email,
+      password: formData.password,
+      phone: formData.mobile,
+      role: mappedRole,
+      district: formData.district,
+      state: formData.state,
+      createdAt: new Date().toISOString()
+    };
+    try {
+      const existingStr = localStorage.getItem('demo_users');
+      const list = existingStr ? JSON.parse(existingStr) : [];
+      list.push(demoUser);
+      localStorage.setItem('demo_users', JSON.stringify(list));
+    } catch (e) {}
+
+    toast.success("Registration Simulated successfully (Demo Mode)! You can now log in.");
+    setTimeout(() => {
+      navigate("/login");
+    }, 1500);
   };
 
   return (
@@ -209,7 +237,6 @@ function Register() {
                 <option value="">Platform Role</option>
                 <option value="Farmer">Farmer</option>
                 <option value="Agriculture Officer">Agriculture Officer</option>
-                <option value="Admin">Admin</option>
               </select>
             </div>
 

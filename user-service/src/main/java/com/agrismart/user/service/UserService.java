@@ -6,19 +6,28 @@ import com.agrismart.user.exception.BadRequestException;
 import com.agrismart.user.exception.ResourceNotFoundException;
 import com.agrismart.user.repository.UserRepository;
 import com.agrismart.user.security.JwtUtils;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import com.agrismart.user.entity.Role;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
-
+    public UserService(UserRepository userRepository,PasswordEncoder passwordEncoder,JwtUtils jwtUtils) {
+    	this.userRepository=userRepository;
+    	this.passwordEncoder=passwordEncoder;
+    	this.jwtUtils=jwtUtils;
+    }
     @Transactional
     public UserResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -90,5 +99,29 @@ public class UserService {
                 .state(user.getState())
                 .createdAt(user.getCreatedAt())
                 .build();
+    }
+
+    public Page<UserResponse> getAllUsers(Pageable pageable) {
+        return userRepository.findAll(pageable)
+                .map(this::mapToUserResponse);
+    }
+
+    public Page<UserResponse> getFarmersList(Pageable pageable) {
+        return userRepository.findByRole(Role.FARMER, pageable)
+                .map(this::mapToUserResponse);
+    }
+
+    public List<UserResponse> getAllFarmers() {
+        return userRepository.findByRole(Role.FARMER).stream()
+                .map(this::mapToUserResponse)
+                .collect(Collectors.toList());
+    }
+
+    public Map<String, Long> getUserCountsByRole() {
+        Map<String, Long> counts = new HashMap<>();
+        for (Role role : Role.values()) {
+            counts.put(role.name(), userRepository.countByRole(role));
+        }
+        return counts;
     }
 }

@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { setFarms } from "../main";
 import "../styles/farm.css";
 
 import Navbar from "../components/Navbar";
@@ -20,9 +21,32 @@ import {
 
 export default function Farms() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [search, setSearch] = useState("");
 
   const farms = useSelector((state) => state.agri.farms) || [];
+  const token = useSelector((state) => state.agri.token);
+  const demoMode = useSelector((state) => state.agri.demoMode);
+
+  useEffect(() => {
+    const loadFarms = async () => {
+      if (!demoMode && token) {
+        try {
+          const res = await fetch("http://localhost:8082/api/farms", {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const farmList = data.content || [];
+            dispatch(setFarms(farmList));
+          }
+        } catch (e) {
+          console.warn("Failed to fetch farms on mount", e);
+        }
+      }
+    };
+    loadFarms();
+  }, [token, demoMode, dispatch]);
   const crops = useSelector((state) => state.agri.crops) || [];
 
   const getCropsForFarm = (farmId) => {

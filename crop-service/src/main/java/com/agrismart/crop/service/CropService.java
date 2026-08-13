@@ -27,6 +27,7 @@ public class CropService {
 
     private final CropRepository cropRepository;
     private final RestClient.Builder restClientBuilder;
+
     public CropService(CropRepository cropRepository, RestClient.Builder restClientBuilder) {
         this.cropRepository = cropRepository;
         this.restClientBuilder = restClientBuilder;
@@ -87,6 +88,7 @@ public class CropService {
                         request.getPlantedDate().plusDays(request.getDuration()))
                 .farmId(request.getFarmId())
                 .yield(request.getYield())
+                .area(request.getArea())
                 .build();
 
         Crop savedCrop = cropRepository.save(crop);
@@ -118,6 +120,7 @@ public class CropService {
                 request.getPlantedDate().plusDays(request.getDuration()));
         crop.setFarmId(request.getFarmId());
         crop.setYield(request.getYield());
+        crop.setArea(request.getArea());
 
         Crop updatedCrop = cropRepository.save(crop);
         return mapToCropResponse(updatedCrop);
@@ -160,7 +163,7 @@ public class CropService {
         return mapToCropResponse(crop);
     }
 
-    public Page<CropResponse> viewCrops(Long farmId, String userRole, Pageable pageable, String jwtToken) {
+    public Page<CropResponse> viewCrops(Long farmId, Long userId, String userRole, Pageable pageable, String jwtToken) {
         Page<Crop> cropPage;
 
         if ("ROLE_FARMER".equals(userRole)) {
@@ -176,8 +179,18 @@ public class CropService {
                 }
                 cropPage = cropRepository.findByFarmIdIn(farmIds, pageable);
             }
+        } else if ("ROLE_OFFICER".equals(userRole)) {
+            if (farmId != null) {
+                cropPage = cropRepository.findByFarmId(farmId, pageable);
+            } else {
+                List<Long> farmIds = getFarmIdsInOfficerRegion(userId);
+                if (farmIds.isEmpty()) {
+                    return Page.empty(pageable);
+                }
+                cropPage = cropRepository.findByFarmIdIn(farmIds, pageable);
+            }
         } else {
-            // OFFICER or ADMIN
+            // ADMIN
             if (farmId != null) {
                 cropPage = cropRepository.findByFarmId(farmId, pageable);
             } else {
@@ -186,6 +199,20 @@ public class CropService {
         }
 
         return cropPage.map(this::mapToCropResponse);
+    }
+
+    private List<Long> getFarmIdsInOfficerRegion(Long officerId) {
+        try {
+            if (officerId == null) return Collections.emptyList();
+            List<String> officerDistList = cropRepository.findOfficerDistrict(officerId);
+            if (officerDistList.isEmpty() || officerDistList.get(0) == null || officerDistList.get(0).trim().isEmpty()) {
+                return Collections.emptyList();
+            }
+            String dist = officerDistList.get(0).trim();
+            return cropRepository.findFarmIdsByRegion(dist);
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
     }
 
     private CropResponse mapToCropResponse(Crop crop) {
@@ -200,6 +227,7 @@ public class CropService {
                 .expectedHarvestDate(crop.getExpectedHarvestDate())
                 .farmId(crop.getFarmId())
                 .yield(crop.getYield())
+                .area(crop.getArea())
                 .build();
     }
 }

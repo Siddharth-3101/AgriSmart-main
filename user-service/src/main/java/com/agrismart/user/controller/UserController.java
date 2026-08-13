@@ -13,6 +13,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/users")
@@ -20,9 +22,11 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
+
     public UserController(UserService userService) {
-    	this.userService=userService;
+        this.userService = userService;
     }
+
     @PostMapping("/register")
     @Operation(summary = "Register a new user", description = "Create a new user account with role FARMER, OFFICER, or ADMIN")
     public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
@@ -43,13 +47,20 @@ public class UserController {
     }
 
     @PutMapping("/profile")
-    @Operation(summary = "Update current user profile", description = "Modify profile details (name, phone, location, password) of the current user")
+    @Operation(summary = "Update current user profile", description = "Modify profile details (name, phone, location, password, soil health) of the current user")
     public ResponseEntity<UserResponse> updateProfile(
             Authentication authentication,
             @Valid @RequestBody ProfileRequest request
     ) {
         Long userId = (Long) authentication.getCredentials();
         return ResponseEntity.ok(userService.updateProfile(userId, request));
+    }
+
+    @GetMapping("/soil-health")
+    @Operation(summary = "Get user soil health data", description = "Retrieve soil health parameters (N, P, K, pH, Moisture, Carbon, EC) for AI models")
+    public ResponseEntity<Map<String, Object>> getSoilHealth(Authentication authentication) {
+        Long userId = (Long) authentication.getCredentials();
+        return ResponseEntity.ok(userService.getSoilHealth(userId));
     }
 
     @GetMapping("/{id}")
@@ -67,8 +78,51 @@ public class UserController {
 
     @GetMapping("/farmers")
     @PreAuthorize("hasAnyRole('OFFICER', 'ADMIN')")
-    @Operation(summary = "Get all farmers", description = "Retrieve an unpaginated list of all farmers")
-    public ResponseEntity<List<UserResponse>> getAllFarmers() {
-        return ResponseEntity.ok(userService.getAllFarmers());
+    @Operation(summary = "Get all farmers", description = "Retrieve list of farmers (filtered by assigned region for officers)")
+    public ResponseEntity<List<UserResponse>> getAllFarmers(Authentication authentication) {
+        Long userId = authentication != null ? (Long) authentication.getCredentials() : null;
+        String userRole = authentication != null && !authentication.getAuthorities().isEmpty()
+                ? authentication.getAuthorities().iterator().next().getAuthority()
+                : "";
+        return ResponseEntity.ok(userService.getAllFarmers(userId, userRole));
+    }
+
+    @GetMapping("/officers")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get all officers", description = "Retrieve list of all registered agricultural officers and their verification status")
+    public ResponseEntity<List<UserResponse>> getAllOfficers() {
+        return ResponseEntity.ok(userService.getOfficersList());
+    }
+
+    @PutMapping("/officers/{id}/verify")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Verify or revoke officer", description = "Admin approves or revokes an officer account")
+    public ResponseEntity<UserResponse> verifyOfficer(
+            Authentication authentication,
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "true") Boolean verified) {
+        Long adminUserId = authentication != null ? (Long) authentication.getCredentials() : null;
+        return ResponseEntity.ok(userService.verifyOfficer(id, verified, adminUserId));
+    }
+
+    @PutMapping("/officers/{id}/assignment")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Assign officer region", description = "Admin assigns or updates state and district for an agriculture officer")
+    public ResponseEntity<UserResponse> assignOfficerRegion(
+            Authentication authentication,
+            @PathVariable Long id,
+            @RequestBody OfficerAssignmentRequest request) {
+        Long adminUserId = authentication != null ? (Long) authentication.getCredentials() : null;
+        return ResponseEntity.ok(userService.assignOfficerRegion(id, request.getDistrict(), request.getState(), adminUserId));
+    }
+
+    @GetMapping("/health")
+    @Operation(summary = "Health check endpoint", description = "Returns service availability status")
+    public ResponseEntity<Map<String, Object>> healthCheck() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("service", "User Service");
+        map.put("status", "UP");
+        map.put("timestamp", System.currentTimeMillis());
+        return ResponseEntity.ok(map);
     }
 }

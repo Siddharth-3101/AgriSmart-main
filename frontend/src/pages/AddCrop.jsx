@@ -24,6 +24,7 @@ import * as turf from "@turf/turf";
 import "../styles/sid.css";
 import { addCropAction } from "../main";
 import LeafletMap from "../components/LeafletMap";
+import { aiApi } from "../services/api";
 
 // Fix Leaflet marker icons
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -109,8 +110,68 @@ function AddCrop() {
   );
   const [duration, setDuration] = useState(120);
   const [landUsed, setLandUsed] = useState(1.0);
-  const [useMap, setUseMap] = useState(false);
+  const [useMap, setUseMap] = useState(true);
   const [cropCoordinates, setCropCoordinates] = useState([]);
+
+  const weather = useSelector((state) => state.agri.weather);
+  const user = useSelector((state) => state.agri.user);
+  const [recommendations, setRecommendations] = useState([]);
+  const [loadingAi, setLoadingAi] = useState(false);
+
+  const handleGetAiRecommendation = async () => {
+    if (!selectedFarm) {
+      toast.warning("Please select a farm plot first!");
+      return;
+    }
+    setLoadingAi(true);
+    const n = user?.nitrogen || 90;
+    const p = user?.phosphorus || 42;
+    const k = user?.potassium || 43;
+    const ph = user?.soilPh || 6.5;
+    const temp = weather?.temperature || 25.5;
+    const hum = weather?.humidity || 80.0;
+    const rain = weather?.rainfall || 200.0;
+
+    const rawLoc = selectedFarm.location || user?.district || "";
+    const cleanLoc = rawLoc.includes(" | ") ? rawLoc.split(" | ")[0].trim() : rawLoc.trim();
+
+    const payload = {
+      nitrogen: Number(n),
+      phosphorus: Number(p),
+      potassium: Number(k),
+      ph: Number(ph),
+      soilType: selectedFarm.soilType || "Loamy Soil",
+      temperature: Number(temp),
+      humidity: Number(hum),
+      rainfall: Number(rain),
+      season: "Monsoon",
+      waterAvailability: selectedFarm.waterSource || "Medium",
+      location: cleanLoc
+    };
+
+    try {
+      const res = await aiApi.getCropRecommendation(payload);
+      if (res && res.recommendations && res.recommendations.length > 0) {
+        setRecommendations(res.recommendations);
+        toast.success(`AI ML Recommendations generated for ${selectedFarm.farmName}!`);
+      } else {
+        toast.error("ML model did not return any recommendations.");
+        setRecommendations([]);
+      }
+    } catch (err) {
+      console.error("Error from ML recommendation service:", err);
+      if (err.status === 422) {
+        toast.error(`ML model validation error (422): ${err.message}`);
+      } else if (err.name === "TypeError" || err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError")) {
+        toast.error("ML recommendation service is offline (port 8000).");
+      } else {
+        toast.error(`ML recommendation service error (${err.status || "HTTP Error"}): ${err.message}`);
+      }
+      setRecommendations([]);
+    } finally {
+      setLoadingAi(false);
+    }
+  };
 
   const selectedFarm = farms.find((f) => String(f.farmId) === selectedFarmId);
 
@@ -301,7 +362,8 @@ function AddCrop() {
       season: "KHARIF",
       plantedDate: plantingDate,
       expectedHarvestDate: expectedHarvest,
-      farmId: Number(selectedFarmId)
+      farmId: Number(selectedFarmId),
+      area: Number(landUsed) || 1.0
     };
 
     try {
@@ -409,7 +471,29 @@ function AddCrop() {
               </div>
 
               <div className="formGroup">
-                <label>Crop Name</label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                  <label style={{ margin: 0 }}>Crop Name</label>
+                  <button
+                    type="button"
+                    onClick={handleGetAiRecommendation}
+                    disabled={loadingAi}
+                    style={{
+                      background: "linear-gradient(135deg,#16a34a,#15803d)",
+                      color: "#fff",
+                      border: "none",
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4
+                    }}
+                  >
+                    <Brain size={14} /> {loadingAi ? "Analyzing Soil & Weather..." : "AI Recommend Crop"}
+                  </button>
+                </div>
                 <select
                   value={cropName}
                   onChange={(e) => setCropName(e.target.value)}
@@ -421,7 +505,82 @@ function AddCrop() {
                   <option value="Cotton">Cotton</option>
                   <option value="Wheat">Wheat</option>
                   <option value="Sugarcane">Sugarcane</option>
+                  <option value="Tomato">Tomato</option>
+                  <option value="Mustard">Mustard</option>
                 </select>
+
+                {recommendations.length > 0 && (
+                  <div style={{ marginTop: 12, background: "#f0fdf4", border: "1.5px solid #86efac", borderRadius: 12, padding: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "#15803d" }}>
+                        ✨ AI ML Recommendations for {selectedFarm ? selectedFarm.farmName : "Selected Farm"} ({selectedFarm ? selectedFarm.soilType : "Soil"}):
+                      </span>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {recommendations.map((rec, idx) => {
+                        const rankLabels = ["🥇 Best Match", "🥈 2nd Choice", "🥉 3rd Choice", "4th Choice", "5th Choice"];
+                        const rankLabel = rankLabels[idx] || `${idx + 1}th Choice`;
+                        const cName = rec.cropName || rec.crop || "Crop";
+                        const confPct = Math.round((rec.confidence || 0.90) * 100);
+                        const isSelected = cropName.toLowerCase() === cName.toLowerCase();
+
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              background: isSelected ? "#ffffff" : "#f8fafc",
+                              border: `1.5px solid ${isSelected ? "#16a34a" : "#cbd5e1"}`,
+                              borderRadius: 10,
+                              padding: "10px 14px",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: 12
+                            }}
+                          >
+                            <div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 13, fontWeight: 800, color: idx === 0 ? "#15803d" : "#334155" }}>
+                                  {rankLabel}: <strong>{cName}</strong>
+                                </span>
+                                <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 800, background: "#dcfce7", color: "#15803d" }}>
+                                  {confPct}% Match
+                                </span>
+                              </div>
+                              <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b" }}>
+                                {rec.reasoning || (idx === 0
+                                  ? `Optimal crop choice for ${selectedFarm ? selectedFarm.soilType : "this"} soil & ${selectedFarm ? selectedFarm.waterSource : "water"} source.`
+                                  : `Suitable secondary crop choice for rotation.`)}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCropName(cName);
+                                toast.info(`Selected ${cName} as your crop choice!`);
+                              }}
+                              style={{
+                                padding: "6px 12px",
+                                borderRadius: 8,
+                                border: "none",
+                                background: isSelected ? "#15803d" : "#16a34a",
+                                color: "#fff",
+                                fontSize: 12,
+                                fontWeight: 800,
+                                cursor: "pointer",
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {isSelected ? "Selected ✓" : "Use Crop"}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="formGroup">
@@ -453,45 +612,35 @@ function AddCrop() {
                   value={landUsed}
                   onChange={(e) => setLandUsed(e.target.value)}
                   required
-                  disabled={useMap}
-                  style={{ backgroundColor: useMap ? "#f1f5f9" : "" }}
+                  disabled={true}
+                  style={{ backgroundColor: "#f1f5f9" }}
                 />
-                {useMap && (
-                  <span style={{ fontSize: "11.5px", color: "var(--primary)", marginTop: "4px", display: "block" }}>
-                    ℹ Area is calculated automatically from the map boundaries.
+                <span style={{ fontSize: "11.5px", color: "var(--primary)", marginTop: "4px", display: "block" }}>
+                  ℹ Land acreage is calculated automatically from the interactive map boundary.
+                </span>
+              </div>
+
+              <div style={{ marginTop: "15px", marginBottom: "20px" }}>
+                <div style={{ marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "#334155" }}>
+                    📍 Interactive Crop Boundary Map (Required)
+                  </label>
+                  <span style={{ fontSize: "12px", color: "#64748b" }}>
+                    Drag ✥ handle to reposition plot or corner handles to reshape crop area.
                   </span>
-                )}
-              </div>
-
-              <div className="mapOption">
-                <input
-                  type="checkbox"
-                  checked={useMap}
-                  onChange={() => setUseMap(!useMap)}
-                />
-                <span>Mark crop area on interactive map (draw inside your farm)</span>
-              </div>
-
-              {useMap && (
-                <div style={{ marginTop: "15px" }}>
-                  <div style={{ marginBottom: "8px" }}>
-                    <span style={{ fontSize: "13px", color: "#475569" }}>
-                      Drag the central ✥ handle to reposition the crop plot or drag the corner handles to reshape the crop area.
-                    </span>
-                  </div>
-
-                  <LeafletMap
-                    farmCoordinates={farmCoordinates}
-                    activeCropPolygons={activeCropPolygons}
-                    onPolygonChange={({ coordinates, areaAcres }) => {
-                      if (coordinates && coordinates.length >= 3) {
-                        setCropCoordinates(coordinates);
-                        setLandUsed(areaAcres > 0 ? areaAcres : 1.0);
-                      }
-                    }}
-                  />
                 </div>
-              )}
+
+                <LeafletMap
+                  farmCoordinates={farmCoordinates}
+                  activeCropPolygons={activeCropPolygons}
+                  onPolygonChange={({ coordinates, areaAcres }) => {
+                    if (coordinates && coordinates.length >= 3) {
+                      setCropCoordinates(coordinates);
+                      setLandUsed(areaAcres > 0 ? areaAcres : 1.0);
+                    }
+                  }}
+                />
+              </div>
 
               <div className="formButtons">
                 <button
@@ -535,34 +684,6 @@ function AddCrop() {
               ) : (
                 <div style={{ fontSize: "12px", color: "gray" }}>
                   Please select a farm to load stats.
-                </div>
-              )}
-            </div>
-
-            {/* AI Recommendation */}
-            <div className="infoCard">
-              <div className="cardTitle">
-                <Brain />
-                <h3>AI Suggested Crops</h3>
-              </div>
-              {selectedFarm ? (
-                aiSuggestions.map((s, idx) => (
-                  <div
-                    className="suggestion"
-                    key={idx}
-                    onClick={() => handleSuggestionClick(s.crop)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <Leaf />
-                    <div>
-                      <h4>{s.crop}</h4>
-                      <p>{s.compat} Compatibility</p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ fontSize: "12px", color: "gray" }}>
-                  Select farm plot to compute soil recommendations.
                 </div>
               )}
             </div>

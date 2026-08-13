@@ -13,9 +13,11 @@ import java.util.Map;
 public class NotificationService {
 
     private final JdbcTemplate jdbcTemplate;
+
     public NotificationService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
+
     @EventListener(ContextRefreshedEvent.class)
     public void createTable() {
         jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS notifications (" +

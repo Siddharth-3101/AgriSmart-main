@@ -94,4 +94,39 @@ public class SchemeController {
         schemeService.updateApplicationStatus(applicationId, status);
         return ResponseEntity.ok().build();
     }
+
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Create a scheme", description = "Admin creates a new government scheme")
+    public ResponseEntity<Map<String, Object>> createScheme(
+            Authentication authentication,
+            @RequestBody Map<String, Object> payload) {
+        Long adminUserId = authentication != null ? (Long) authentication.getCredentials() : null;
+        String adminName = authentication != null ? (String) authentication.getPrincipal() : "Admin";
+        return ResponseEntity.ok(schemeService.createScheme(payload, adminUserId, adminName));
+    }
+
+    @PutMapping("/{schemeId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Update a scheme", description = "Admin updates an existing government scheme")
+    public ResponseEntity<Map<String, Object>> updateScheme(
+            Authentication authentication,
+            @PathVariable Long schemeId,
+            @RequestBody Map<String, Object> payload) {
+        Long adminUserId = authentication != null ? (Long) authentication.getCredentials() : null;
+        String adminName = authentication != null ? (String) authentication.getPrincipal() : "Admin";
+        return ResponseEntity.ok(schemeService.updateScheme(schemeId, payload, adminUserId, adminName));
+    }
+
+    @DeleteMapping("/{schemeId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Delete a scheme", description = "Admin deletes or archives a government scheme")
+    public ResponseEntity<Void> deleteScheme(
+            Authentication authentication,
+            @PathVariable Long schemeId) {
+        Long adminUserId = authentication != null ? (Long) authentication.getCredentials() : null;
+        String adminName = authentication != null ? (String) authentication.getPrincipal() : "Admin";
+        schemeService.deleteScheme(schemeId, adminUserId, adminName);
+        return ResponseEntity.noContent().build();
+    }
 }

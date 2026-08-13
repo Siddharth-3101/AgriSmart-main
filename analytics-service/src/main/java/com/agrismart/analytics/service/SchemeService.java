@@ -12,9 +12,11 @@ import java.util.Map;
 public class SchemeService {
 
     private final JdbcTemplate jdbcTemplate;
+
     public SchemeService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
+
     @org.springframework.context.event.EventListener(org.springframework.context.event.ContextRefreshedEvent.class)
     public void seedSchemesIfNecessary() {
         try {
@@ -31,7 +33,6 @@ public class SchemeService {
                 "    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
                 ")");
 
-            // After creating schemes table, also create scheme_applications table
             jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS scheme_applications (" +
                 "application_id BIGINT AUTO_INCREMENT PRIMARY KEY," +
                 "user_id BIGINT NOT NULL," +
@@ -58,7 +59,6 @@ public class SchemeService {
                     "(11, 'Punjab Free Power Scheme for Agriculture', 'Subsidies', 'State government initiative providing free electricity supply to agricultural tube wells to support irrigation for farmers in Punjab.', '100% free electricity supply for agricultural tubewells', 'Punjab resident landholding farmers owning agricultural electric pump tube wells.', 'Aadhaar Card, Electricity Connection Details, Land Ownership Certificate', 'https://www.pspcl.in', 'Punjab')," +
                     "(12, 'Haryana Bhavantar Bharpayee Yojana (BBY)', 'Financial Assistance', 'State scheme compensating farmers for price deficit of horticultural crops (vegetables & fruits) when market prices fall below floor prices.', 'Price compensation difference deposited directly to bank accounts', 'Haryana resident farmers registered on Meri Fasal Mera Byora (MFMB) portal cultivating notified crops.', 'Aadhaar Card, Meri Fasal Mera Byora Registration Slip, Bank Account', 'https://ekharid.haryana.gov.in', 'Haryana')";
                 jdbcTemplate.execute(insertQuery);
-                System.out.println("Seeded 12 schemes successfully into the SQL database.");
             }
         } catch (Exception e) {
             System.err.println("Failed to seed schemes: " + e.getMessage());
@@ -70,18 +70,16 @@ public class SchemeService {
     }
 
     public List<Map<String, Object>> getRecommendedSchemes(Long userId) {
-        // 1. Fetch user state & district
         Map<String, Object> user;
         try {
             user = jdbcTemplate.queryForMap(
                 "SELECT state, district, role FROM users WHERE user_id = ?", userId);
         } catch (Exception e) {
-            return new ArrayList<>(); // User not found
+            return new ArrayList<>();
         }
 
         String userState = user.get("state") != null ? ((String) user.get("state")).trim() : "";
         
-        // 2. Fetch total farm area
         Double totalArea = 0.0;
         List<Double> areas = jdbcTemplate.queryForList(
                 "SELECT area FROM farms WHERE user_id = ?", Double.class, userId);
@@ -89,38 +87,30 @@ public class SchemeService {
             if (area != null) totalArea += area;
         }
 
-        // 3. Fetch active crops list
         List<String> activeCrops = jdbcTemplate.queryForList(
                 "SELECT DISTINCT c.crop_name FROM crops c JOIN farms f ON c.farm_id = f.farm_id " +
                 "WHERE f.user_id = ? AND c.status = 'ACTIVE'", String.class, userId);
 
-        // 4. Fetch all schemes
         List<Map<String, Object>> allSchemes = jdbcTemplate.queryForList("SELECT * FROM schemes");
         List<Map<String, Object>> recommended = new ArrayList<>();
 
         for (Map<String, Object> scheme : allSchemes) {
             String schemeState = scheme.get("state") != null ? (String) scheme.get("state") : "All States";
             String criteria = scheme.get("eligibility_criteria") != null ? (String) scheme.get("eligibility_criteria") : "";
-            String category = scheme.get("category") != null ? (String) scheme.get("category") : "";
-            String name = (String) scheme.get("scheme_name");
 
-            // Eligibility Rule 1: State Match check
             boolean isStateEligible = "All States".equalsIgnoreCase(schemeState) || 
                                       userState.equalsIgnoreCase(schemeState);
 
             if (!isStateEligible) {
-                continue; // Skip ineligible state schemes
+                continue;
             }
 
-            // Calculate matching score base
             int matchPercent = 70;
 
-            // Rule 2: State Specific premium
             if (!"All States".equalsIgnoreCase(schemeState) && userState.equalsIgnoreCase(schemeState)) {
                 matchPercent += 15;
             }
 
-            // Rule 3: Crop Match
             boolean cropMatches = false;
             for (String crop : activeCrops) {
                 if (criteria.toLowerCase().contains(crop.toLowerCase())) {
@@ -132,7 +122,6 @@ public class SchemeService {
                 matchPercent += 10;
             }
 
-            // Rule 4: Land size limit matching (PM-KISAN or small holder indicators)
             if (criteria.toLowerCase().contains("landholding") || criteria.toLowerCase().contains("acres")) {
                 if (totalArea > 0 && totalArea <= 5.0) {
                     matchPercent += 5;
@@ -141,7 +130,6 @@ public class SchemeService {
                 }
             }
 
-            // Cap matching percent
             matchPercent = Math.min(100, Math.max(0, matchPercent));
 
             Map<String, Object> item = new HashMap<>(scheme);
@@ -149,13 +137,11 @@ public class SchemeService {
             recommended.add(item);
         }
 
-        // Sort recommended schemes by eligibilityMatch descending
         recommended.sort((a, b) -> ((Integer) b.get("eligibilityMatch")).compareTo((Integer) a.get("eligibilityMatch")));
         return recommended;
     }
 
     public Map<String, Object> applyToScheme(Long userId, Long schemeId) {
-        // Check if already applied
         List<Map<String, Object>> existing = jdbcTemplate.queryForList(
             "SELECT * FROM scheme_applications WHERE user_id = ? AND scheme_id = ?", userId, schemeId);
         if (!existing.isEmpty()) {
@@ -222,5 +208,92 @@ public class SchemeService {
             "UPDATE scheme_applications SET status = ? WHERE application_id = ?",
             status, applicationId
         );
+    }
+
+    private void logAudit(String action, Long actorId, String actorName, String targetType, String targetId, String details) {
+        try {
+            jdbcTemplate.update(
+                "INSERT INTO audit_logs (action, actor_id, actor_name, target_type, target_id, details) VALUES (?, ?, ?, ?, ?, ?)",
+                action, actorId != null ? actorId : 1L, actorName != null ? actorName : "Admin", targetType, targetId, details
+            );
+        } catch (Exception e) {
+            System.err.println("Failed to insert audit log: " + e.getMessage());
+        }
+    }
+
+    public Map<String, Object> createScheme(Map<String, Object> payload, Long adminUserId, String adminName) {
+        String name = (String) payload.get("scheme_name");
+        if (name == null || name.isBlank()) name = (String) payload.get("schemeName");
+        String category = (String) payload.getOrDefault("category", "General");
+        String description = (String) payload.getOrDefault("description", "");
+        String benefits = (String) payload.getOrDefault("benefits", "");
+        String criteria = (String) payload.get("eligibility_criteria");
+        if (criteria == null) criteria = (String) payload.getOrDefault("eligibilityCriteria", "");
+        String documents = (String) payload.get("required_documents");
+        if (documents == null) documents = (String) payload.getOrDefault("requiredDocuments", "");
+        String link = (String) payload.get("official_link");
+        if (link == null) link = (String) payload.getOrDefault("officialLink", "");
+        String state = (String) payload.getOrDefault("state", "All States");
+
+        jdbcTemplate.update(
+            "INSERT INTO schemes (scheme_name, category, description, benefits, eligibility_criteria, required_documents, official_link, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            name, category, description, benefits, criteria, documents, link, state
+        );
+
+        Map<String, Object> created = jdbcTemplate.queryForMap(
+            "SELECT * FROM schemes ORDER BY scheme_id DESC LIMIT 1"
+        );
+        
+        Long newId = ((Number) created.get("scheme_id")).longValue();
+        logAudit("SCHEME_CREATED", adminUserId, adminName, "SCHEME", String.valueOf(newId), "Created scheme '" + name + "' in category '" + category + "'");
+
+        return created;
+    }
+
+    public Map<String, Object> updateScheme(Long schemeId, Map<String, Object> payload, Long adminUserId, String adminName) {
+        String name = (String) payload.get("scheme_name");
+        if (name == null || name.isBlank()) name = (String) payload.get("schemeName");
+        String category = (String) payload.getOrDefault("category", "General");
+        String description = (String) payload.getOrDefault("description", "");
+        String benefits = (String) payload.getOrDefault("benefits", "");
+        String criteria = (String) payload.get("eligibility_criteria");
+        if (criteria == null) criteria = (String) payload.getOrDefault("eligibilityCriteria", "");
+        String documents = (String) payload.get("required_documents");
+        if (documents == null) documents = (String) payload.getOrDefault("requiredDocuments", "");
+        String link = (String) payload.get("official_link");
+        if (link == null) link = (String) payload.getOrDefault("officialLink", "");
+        String state = (String) payload.getOrDefault("state", "All States");
+
+        jdbcTemplate.update(
+            "UPDATE schemes SET scheme_name = ?, category = ?, description = ?, benefits = ?, eligibility_criteria = ?, required_documents = ?, official_link = ?, state = ? WHERE scheme_id = ?",
+            name, category, description, benefits, criteria, documents, link, state, schemeId
+        );
+
+        Map<String, Object> updated = jdbcTemplate.queryForMap(
+            "SELECT * FROM schemes WHERE scheme_id = ?", schemeId
+        );
+
+        logAudit("SCHEME_UPDATED", adminUserId, adminName, "SCHEME", String.valueOf(schemeId), "Updated scheme '" + name + "'");
+
+        return updated;
+    }
+
+    public void deleteScheme(Long schemeId, Long adminUserId, String adminName) {
+        Integer appCount = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM scheme_applications WHERE scheme_id = ?", Integer.class, schemeId
+        );
+        String action;
+        String details;
+        if (appCount != null && appCount > 0) {
+            jdbcTemplate.update("UPDATE schemes SET scheme_name = CONCAT(scheme_name, ' [ARCHIVED]') WHERE scheme_id = ? AND scheme_name NOT LIKE '%[ARCHIVED]%'", schemeId);
+            action = "SCHEME_ARCHIVED";
+            details = "Archived scheme ID " + schemeId + " (preserved " + appCount + " historical applications)";
+        } else {
+            jdbcTemplate.update("DELETE FROM schemes WHERE scheme_id = ?", schemeId);
+            action = "SCHEME_DELETED";
+            details = "Deleted scheme ID " + schemeId;
+        }
+
+        logAudit(action, adminUserId, adminName, "SCHEME", String.valueOf(schemeId), details);
     }
 }

@@ -59,104 +59,35 @@ export default function Weather() {
 
   const weatherData = useMemo(() => {
     if (forecast.length === 0) {
-      // Fallback matching original data if forecast is empty
-      const todayTemp = weather ? `${Math.round(weather.temperature)}°C` : "31°C";
-      const todayHum = weather ? `${weather.humidity}%` : "94%";
-      const todayWind = weather ? `${weather.rainfall || 0.5} mm` : "0.5 mm";
-      const todayDesc = weather ? weather.description : "Drizzle";
-      const { image, icon } = getConditionDetails(todayDesc);
+      // Fallback matching real backend weather data if forecast array is empty
+      const curTempNum = weather?.temperature != null ? weather.temperature : 28.0;
+      const curTemp = `${Math.round(curTempNum)}°C`;
+      const curHum = weather?.humidity != null ? `${Math.round(weather.humidity)}%` : "70%";
+      const curRainRaw = weather?.rainfall != null ? weather.rainfall : 0.0;
+      const curRain = curRainRaw === 0 || curRainRaw == null ? "No rainfall" : `${curRainRaw.toFixed(1)} mm`;
+      const curDesc = weather?.description || "Partly Cloudy";
+      const curWindSpeedNum = weather?.windSpeed != null ? weather.windSpeed : 4.5;
+      const curWind = `${Math.round(curWindSpeedNum * 3.6)} km/h`;
+      const { image, icon } = getConditionDetails(curDesc);
+
+      const tMin = Math.round(curTempNum - 3);
+      const tMax = Math.round(curTempNum + 3);
 
       return [
         {
           id: 1,
           day: "Today",
-          temp: todayTemp,
-          condition: todayDesc,
+          temp: curTemp,
+          condition: curDesc,
           city,
           country: "India",
-          humidity: todayHum,
-          wind: todayWind,
-          feels: weather ? `${Math.round(weather.temperature - 3)}°C` : "28°C",
+          humidity: curHum,
+          rainfall: curRain,
+          wind: curWind,
+          feels: curTemp,
+          tempMinMax: `${tMin}°C - ${tMax}°C`,
           image,
           icon
-        },
-        {
-          id: 2,
-          day: "Tomorrow",
-          temp: "28°C",
-          condition: "Cloudy",
-          city,
-          country: "India",
-          humidity: "72%",
-          wind: "11 km/h",
-          feels: "30°C",
-          image: cloudy,
-          icon: <WiCloud />
-        },
-        {
-          id: 3,
-          day: "Wednesday",
-          temp: "26°C",
-          condition: "Rain",
-          city,
-          country: "India",
-          humidity: "91%",
-          wind: "18 km/h",
-          feels: "27°C",
-          image: rainy,
-          icon: <WiRain />
-        },
-        {
-          id: 4,
-          day: "Thursday",
-          temp: "25°C",
-          condition: "Storm",
-          city,
-          country: "India",
-          humidity: "93%",
-          wind: "25 km/h",
-          feels: "25°C",
-          image: storm,
-          icon: <WiThunderstorm />
-        },
-        {
-          id: 5,
-          day: "Friday",
-          temp: "29°C",
-          condition: "Sunrise",
-          city,
-          country: "India",
-          humidity: "61%",
-          wind: "12 km/h",
-          feels: "31°C",
-          image: sunrise,
-          icon: <WiSunrise />
-        },
-        {
-          id: 6,
-          day: "Saturday",
-          temp: "27°C",
-          condition: "Mist",
-          city,
-          country: "India",
-          humidity: "84%",
-          wind: "8 km/h",
-          feels: "28°C",
-          image: mist,
-          icon: <WiFog />
-        },
-        {
-          id: 7,
-          day: "Sunday",
-          temp: "24°C",
-          condition: "Night",
-          city,
-          country: "India",
-          humidity: "55%",
-          wind: "9 km/h",
-          feels: "25°C",
-          image: night,
-          icon: <WiNightClear />
         }
       ];
     }
@@ -164,18 +95,28 @@ export default function Weather() {
     return forecast.slice(0, 7).map((f, idx) => {
       const dayName = idx === 0 ? "Today" : idx === 1 ? "Tomorrow" : new Date(f.date).toLocaleDateString([], { weekday: "long" });
       const { image, icon } = getConditionDetails(f.description);
-      const tempAvg = Math.round((f.tempMax + f.tempMin) / 2);
+      const tMax = f.tempMax != null ? Math.round(f.tempMax) : (weather?.temperature != null ? Math.round(weather.temperature) : 28);
+      const tMin = f.tempMin != null ? Math.round(f.tempMin) : Math.max(15, tMax - 6);
+      const mainTemp = idx === 0 && weather?.temperature != null ? `${Math.round(weather.temperature)}°C` : `${tMax}°C`;
+
+      const humidityVal = f.humidity != null ? `${Math.round(f.humidity)}%` : (weather?.humidity != null ? `${Math.round(weather.humidity)}%` : "70%");
+      const rainRaw = f.rainfall != null ? f.rainfall : (idx === 0 && weather?.rainfall != null ? weather.rainfall : 0);
+      const rainFormatted = rainRaw === 0 || rainRaw == null ? "No rainfall" : `${Number(rainRaw).toFixed(1)} mm`;
+      
+      const speedMs = weather?.windSpeed != null ? weather.windSpeed : 4.5;
+      const windFormatted = `${Math.round(speedMs * 3.6)} km/h`;
 
       return {
         id: idx + 1,
         day: dayName,
-        temp: `${Math.round(f.tempMax)}°C`,
-        condition: f.description,
+        temp: mainTemp,
+        condition: f.description || weather?.description || "Clouds",
         city,
         country: "India",
-        humidity: `${f.humidity}%`,
-        wind: `${f.rainfall || 0} mm`,
-        feels: `${tempAvg}°C`,
+        humidity: humidityVal,
+        rainfall: rainFormatted,
+        wind: windFormatted,
+        tempMinMax: `${tMin}°C - ${tMax}°C`,
         image,
         icon
       };
@@ -186,13 +127,14 @@ export default function Weather() {
 
   const current = weatherData[active] || weatherData[0] || {
     day: "Today",
-    temp: "31°C",
-    condition: "Drizzle",
+    temp: "28°C",
+    condition: "Partly Cloudy",
     city: "Coimbatore",
     country: "India",
-    humidity: "94%",
-    wind: "0.5 mm",
-    feels: "28°C",
+    humidity: "70%",
+    rainfall: "No rainfall",
+    wind: "16 km/h",
+    tempMinMax: "22°C - 28°C",
     image: mist,
     icon: <WiFog />
   };
@@ -229,8 +171,8 @@ export default function Weather() {
               <div className="weather-small-boxes">
                 <div className="small-box">
                   <FaTemperatureHigh />
-                  <h4>Feels Like</h4>
-                  <p>{current.feels}</p>
+                  <h4>Temp Range</h4>
+                  <p>{current.tempMinMax}</p>
                 </div>
                 <div className="small-box">
                   <FaTint />
@@ -239,7 +181,7 @@ export default function Weather() {
                 </div>
                 <div className="small-box">
                   <FaWind />
-                  <h4>Precipitation</h4>
+                  <h4>Wind Speed</h4>
                   <p>{current.wind}</p>
                 </div>
               </div>
@@ -284,20 +226,20 @@ export default function Weather() {
 
             <div className="weather-floating-panel">
               <div className="floating-item">
-                <span>Pressure</span>
-                <h3>1008 hPa</h3>
+                <span>Rainfall</span>
+                <h3 style={{ fontSize: "20px" }}>{current.rainfall}</h3>
               </div>
               <div className="floating-item">
-                <span>Visibility</span>
-                <h3>8 km</h3>
+                <span>Wind Speed</span>
+                <h3 style={{ fontSize: "20px" }}>{current.wind}</h3>
               </div>
               <div className="floating-item">
-                <span>UV Index</span>
-                <h3>5</h3>
+                <span>Temp Range</span>
+                <h3 style={{ fontSize: "20px" }}>{current.tempMinMax}</h3>
               </div>
               <div className="floating-item">
-                <span>Rain Chance</span>
-                <h3>18%</h3>
+                <span>Air Humidity</span>
+                <h3 style={{ fontSize: "20px" }}>{current.humidity}</h3>
               </div>
             </div>
 

@@ -200,16 +200,12 @@ export default function Schemes() {
   ];
 
   // Determine effective possessed docs:
-  // If online and have backend docs, use VERIFIED ones.
-  // Otherwise fall back to the manual checkbox list.
+  // Combine all uploaded backend documents (PENDING or VERIFIED) with manual checklist selections.
   const effectivePossessedDocs = useMemo(() => {
-    if (!demoMode && backendDocuments.length > 0) {
-      return backendDocuments
-        .filter(d => d.verificationStatus === "VERIFIED")
-        .map(d => d.documentType);
-    }
-    return possessedDocs;
-  }, [backendDocuments, possessedDocs, demoMode]);
+    const uploadedTypes = (backendDocuments || []).map(d => d.documentType).filter(Boolean);
+    const combined = Array.from(new Set([...uploadedTypes, ...(possessedDocs || [])]));
+    return combined;
+  }, [backendDocuments, possessedDocs]);
 
   // Fetch or calculate schemes recommendation
   const computedSchemesList = useMemo(() => {
@@ -440,7 +436,7 @@ export default function Schemes() {
                 <h4 style={{ fontSize: "16px", color: "var(--primary)", marginBottom: "8px" }}>Required Documents Checklist</h4>
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
                   {reqDocs.map((doc, idx) => {
-                    const hasDoc = possessedDocs.some(
+                    const hasDoc = effectivePossessedDocs.some(
                       pd => pd.toLowerCase().includes(doc.toLowerCase()) || doc.toLowerCase().includes(pd.toLowerCase())
                     );
                     return (

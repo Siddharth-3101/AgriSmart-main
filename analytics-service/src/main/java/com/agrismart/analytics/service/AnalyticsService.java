@@ -52,38 +52,96 @@ public class AnalyticsService {
         return data;
     }
 
-    public Map<String, Object> getOfficerAnalytics() {
+    public Map<String, Object> getOfficerAnalytics(Long officerUserId) {
         Map<String, Object> data = new HashMap<>();
 
+        String officerDistrict = null;
+        String officerState = null;
+        if (officerUserId != null) {
+            try {
+                List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT district, state FROM users WHERE user_id = ? AND role = 'OFFICER'",
+                    officerUserId
+                );
+                if (!rows.isEmpty()) {
+                    officerDistrict = (String) rows.get(0).get("district");
+                    officerState = (String) rows.get(0).get("state");
+                }
+            } catch (Exception e) {
+                // fallback to un-scoped
+            }
+        }
+
+        boolean hasRegion = officerDistrict != null && !officerDistrict.trim().isEmpty();
+
         // 1. Total Farmers
-        Integer totalFarmers = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM users WHERE role = 'FARMER'", Integer.class);
+        Integer totalFarmers;
+        if (hasRegion) {
+            totalFarmers = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM users WHERE role = 'FARMER' AND (LOWER(district) = LOWER(?) OR LOWER(state) = LOWER(?))",
+                    Integer.class, officerDistrict, officerDistrict);
+        } else {
+            totalFarmers = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM users WHERE role = 'FARMER'", Integer.class);
+        }
         data.put("totalFarmers", totalFarmers);
 
         // 2. Crop Distribution (Pie chart data: crop name and count)
-        List<Map<String, Object>> cropDistribution = jdbcTemplate.queryForList(
-                "SELECT crop_name as name, COUNT(*) as value FROM crops GROUP BY crop_name");
+        List<Map<String, Object>> cropDistribution;
+        if (hasRegion) {
+            cropDistribution = jdbcTemplate.queryForList(
+                    "SELECT c.crop_name as name, COUNT(*) as value FROM crops c JOIN farms f ON c.farm_id = f.farm_id JOIN users u ON f.user_id = u.user_id WHERE u.role = 'FARMER' AND (LOWER(u.district) = LOWER(?) OR LOWER(u.state) = LOWER(?)) GROUP BY c.crop_name", officerDistrict, officerDistrict);
+        } else {
+            cropDistribution = jdbcTemplate.queryForList(
+                    "SELECT crop_name as name, COUNT(*) as value FROM crops GROUP BY crop_name");
+        }
         data.put("cropDistribution", cropDistribution);
 
         // 3. Risk / Status Statistics
-        List<Map<String, Object>> riskStats = jdbcTemplate.queryForList(
-                "SELECT status as name, COUNT(*) as value FROM crops GROUP BY status");
+        List<Map<String, Object>> riskStats;
+        if (hasRegion) {
+            riskStats = jdbcTemplate.queryForList(
+                    "SELECT c.status as name, COUNT(*) as value FROM crops c JOIN farms f ON c.farm_id = f.farm_id JOIN users u ON f.user_id = u.user_id WHERE u.role = 'FARMER' AND (LOWER(u.district) = LOWER(?) OR LOWER(u.state) = LOWER(?)) GROUP BY c.status", officerDistrict, officerDistrict);
+        } else {
+            riskStats = jdbcTemplate.queryForList(
+                    "SELECT status as name, COUNT(*) as value FROM crops GROUP BY status");
+        }
         data.put("riskStats", riskStats);
 
         // 4. Total Farms
-        Integer totalFarms = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM farms", Integer.class);
+        Integer totalFarms;
+        if (hasRegion) {
+            totalFarms = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM farms f JOIN users u ON f.user_id = u.user_id WHERE u.role = 'FARMER' AND (LOWER(u.district) = LOWER(?) OR LOWER(u.state) = LOWER(?))", Integer.class, officerDistrict, officerDistrict);
+        } else {
+            totalFarms = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM farms", Integer.class);
+        }
         data.put("totalFarms", totalFarms);
 
         // 5. Total Crops
-        Integer totalCrops = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM crops", Integer.class);
+        Integer totalCrops;
+        if (hasRegion) {
+            totalCrops = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM crops c JOIN farms f ON c.farm_id = f.farm_id JOIN users u ON f.user_id = u.user_id WHERE u.role = 'FARMER' AND (LOWER(u.district) = LOWER(?) OR LOWER(u.state) = LOWER(?))", Integer.class, officerDistrict, officerDistrict);
+        } else {
+            totalCrops = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM crops", Integer.class);
+        }
         data.put("totalCrops", totalCrops);
 
         // 6. Active Crops
-        Integer activeCrops = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM crops WHERE status='ACTIVE'", Integer.class);
+        Integer activeCrops;
+        if (hasRegion) {
+            activeCrops = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM crops c JOIN farms f ON c.farm_id = f.farm_id JOIN users u ON f.user_id = u.user_id WHERE u.role = 'FARMER' AND c.status='ACTIVE' AND (LOWER(u.district) = LOWER(?) OR LOWER(u.state) = LOWER(?))", Integer.class, officerDistrict, officerDistrict);
+        } else {
+            activeCrops = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM crops WHERE status='ACTIVE'", Integer.class);
+        }
         data.put("activeCrops", activeCrops);
 
         // 7. Total Cultivated Area
-        Double totalCultivatedArea = jdbcTemplate.queryForObject("SELECT COALESCE(SUM(area), 0) FROM farms", Double.class);
+        Double totalCultivatedArea;
+        if (hasRegion) {
+            totalCultivatedArea = jdbcTemplate.queryForObject("SELECT COALESCE(SUM(f.area), 0) FROM farms f JOIN users u ON f.user_id = u.user_id WHERE u.role = 'FARMER' AND (LOWER(u.district) = LOWER(?) OR LOWER(u.state) = LOWER(?))", Double.class, officerDistrict, officerDistrict);
+        } else {
+            totalCultivatedArea = jdbcTemplate.queryForObject("SELECT COALESCE(SUM(area), 0) FROM farms", Double.class);
+        }
         data.put("totalCultivatedArea", totalCultivatedArea);
 
         // 8. Soil Distribution
@@ -125,7 +183,7 @@ public class AnalyticsService {
                     "SELECT COUNT(*) FROM farmer_documents WHERE verification_status = 'REJECTED'", Integer.class);
             data.put("rejectedDocuments", rejectedDocs != null ? rejectedDocs : 0);
         } catch (Exception e) {
-            // Table not yet created (user-service not started yet) — default to 0
+            // Table not yet created — default to 0
             data.put("pendingDocuments", 0);
             data.put("verifiedDocuments", 0);
             data.put("rejectedDocuments", 0);

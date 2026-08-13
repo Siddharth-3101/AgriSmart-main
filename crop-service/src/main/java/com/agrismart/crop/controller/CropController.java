@@ -117,6 +117,7 @@ public class CropController {
             @RequestParam(defaultValue = "cropId") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDir
     ) {
+        Long userId = (Long) authentication.getCredentials();
         String userRole = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .findFirst().orElse("");
@@ -125,7 +126,7 @@ public class CropController {
         Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        return ResponseEntity.ok(cropService.viewCrops(farmId, userRole, pageable, token));
+        return ResponseEntity.ok(cropService.viewCrops(farmId, userId, userRole, pageable, token));
     }
 
     @PostMapping("/chatbot")
@@ -134,5 +135,15 @@ public class CropController {
             @RequestBody ChatbotRequest request
     ) {
         return ResponseEntity.ok(chatbotService.getReply(request));
+    }
+
+    @GetMapping("/health")
+    @Operation(summary = "Health check endpoint", description = "Returns service availability status")
+    public ResponseEntity<java.util.Map<String, Object>> healthCheck() {
+        java.util.Map<String, Object> map = new java.util.HashMap<>();
+        map.put("service", "Crop Service");
+        map.put("status", "UP");
+        map.put("timestamp", System.currentTimeMillis());
+        return ResponseEntity.ok(map);
     }
 }

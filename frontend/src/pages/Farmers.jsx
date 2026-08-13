@@ -1,26 +1,33 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import "../styles/ofarmers.css";
+import "../styles/ofarm.css";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { toast } from "react-toastify";
 import {
-  FaBars, FaHome, FaUsers, FaTractor, FaClipboardList, FaBell,
+  FaBars, FaHome, FaUsers, FaClipboardList, FaBell,
   FaSearch, FaUserCircle, FaSignOutAlt, FaEye, FaTimes,
-  FaCheckCircle, FaTimesCircle, FaHourglassHalf, FaDownload,
-  FaFileAlt, FaSeedling, FaMapMarkerAlt
+  FaCheckCircle, FaTimesCircle, FaDownload,
+  FaFileAlt, FaSeedling, FaMapMarkerAlt, FaLeaf
 } from "react-icons/fa";
 import { MdAgriculture } from "react-icons/md";
 import { setUser, setToken } from "../main";
-import { documentApi, schemeApi, userApi, farmApi } from "../services/api";
+import { documentApi, schemeApi, userApi, analyticsApi } from "../services/api";
+import LeafletViewer from "../components/LeafletViewer";
+import {
+  ResponsiveContainer, BarChart, Bar, Cell,
+  PieChart, Pie, Tooltip, XAxis, YAxis, CartesianGrid
+} from "recharts";
 
 const MENU = [
   { name: "Dashboard",     icon: <FaHome />,         path: "/officer/dashboard",   key: "dashboard" },
   { name: "Farmers",       icon: <FaUsers />,         path: "/officer/farmers",     key: "farmers"   },
-  { name: "Farms & Crops", icon: <FaTractor />,       path: "/officer/ofarms",      key: "farms"     },
   { name: "Schemes",       icon: <FaClipboardList />, path: "/officer/oschemes",    key: "schemes"   },
   { name: "Broadcast",     icon: <FaBell />,          path: "/officer/onification", key: "notif"     },
   { name: "Profile",       icon: <FaUserCircle />,    path: "/officer/oprofile",    key: "profile"   },
 ];
+
+const COLORS = ["#16a34a", "#f59e0b", "#3b82f6", "#8b5cf6", "#ef4444", "#06b6d4"];
 
 const STATUS_COLORS = {
   VERIFIED: { bg: "#dcfce7", color: "#15803d" },
@@ -28,24 +35,33 @@ const STATUS_COLORS = {
   REJECTED: { bg: "#fee2e2", color: "#dc2626" },
 };
 
+const STATUS_BADGE = {
+  ACTIVE:    { bg: "#dcfce7", color: "#15803d" },
+  HARVESTED: { bg: "#dbeafe", color: "#1d4ed8" },
+  FAILED:    { bg: "#fee2e2", color: "#dc2626" },
+  PENDING:   { bg: "#fef3c7", color: "#b45309" },
+};
+
 export default function Farmers() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [searchParams] = useSearchParams();
 
-  const user     = useSelector(s => s.agri.user);
-  const token    = useSelector(s => s.agri.token);
-  const farms    = useSelector(s => s.agri.farms)    || [];
-  const crops    = useSelector(s => s.agri.crops)    || [];
+  // Redux values
+  const user       = useSelector(s => s.agri.user);
+  const token      = useSelector(s => s.agri.token);
+  const farms      = useSelector(s => s.agri.farms)    || [];
+  const crops      = useSelector(s => s.agri.crops)    || [];
   const reduxUsers = useSelector(s => s.agri.usersList) || [];
 
+  // Farmers Directory State
   const [showSidebar,      setShowSidebar]      = useState(false);
-  const [searchTerm,       setSearchTerm]       = useState(searchParams.get("search") || "");
+  const [farmerSearch,     setFarmerSearch]     = useState(searchParams.get("search") || "");
   const [districtFilter,   setDistrictFilter]   = useState("All");
   const [farmers,          setFarmers]          = useState([]);
   const [loading,          setLoading]          = useState(true);
 
-  // Drawer state
+  // Farmer Detail Drawer State
   const [drawerOpen,       setDrawerOpen]       = useState(false);
   const [selectedFarmer,   setSelectedFarmer]   = useState(null);
   const [drawerTab,        setDrawerTab]        = useState("info");
@@ -58,7 +74,14 @@ export default function Farmers() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  /* ── Fetch farmers ── */
+  // Farms & Crops Desk State
+  const [activeTab,   setActiveTab]   = useState("farms");
+  const [farmSearch,  setFarmSearch]  = useState("");
+  const [selectedFarm, setSelectedFarm] = useState(null);
+  const [selectedCrop, setSelectedCrop] = useState(null);
+  const [analytics,    setAnalytics]    = useState(null);
+
+  /* ── Fetch farmers from API ── */
   useEffect(() => {
     if (!token) return;
     setLoading(true);
@@ -71,6 +94,14 @@ export default function Farmers() {
         setFarmers(reduxUsers.filter(u => u.role === "FARMER"));
         setLoading(false);
       });
+  }, [token]);
+
+  /* ── Fetch officer analytics from API ── */
+  useEffect(() => {
+    if (!token) return;
+    analyticsApi.getOfficerAnalytics(token)
+      .then(data => setAnalytics(data))
+      .catch(() => {});
   }, [token]);
 
   /* ── Open farmer drawer ── */
@@ -92,10 +123,9 @@ export default function Farmers() {
       setFarmerApps([]);
     }
 
-    // Get farms and crops from Redux (already fetched)
-    setFarmerFarms(farms.filter(f => f.userId === farmer.userId));
+    setFarmerFarms(farms.filter(f => f.userId === farmer.userId || f.farmerId === farmer.userId));
     setFarmerCrops(crops.filter(c => {
-      const ff = farms.filter(f => f.userId === farmer.userId);
+      const ff = farms.filter(f => f.userId === farmer.userId || f.farmerId === farmer.userId);
       return ff.some(f => f.farmId === c.farmId);
     }));
 
@@ -130,27 +160,74 @@ export default function Farmers() {
     navigate("/login");
   };
 
-  /* ── Filtered + Paginated ── */
+  /* ── Farmers filter & pagination ── */
   const districts = ["All", ...new Set(farmers.map(f => f.district).filter(Boolean))];
 
-  const filtered = farmers.filter(f => {
-    const q = searchTerm.toLowerCase();
-    const matchName  = (f.name || "").toLowerCase().includes(q);
-    const matchPhone = (f.phone || "").includes(q);
-    const matchDist  = (f.district || "").toLowerCase().includes(q);
-    const matchDistrFilter = districtFilter === "All" || f.district === districtFilter;
-    return (matchName || matchPhone || matchDist) && matchDistrFilter;
-  });
+  const filteredFarmers = useMemo(() => {
+    return farmers.filter(f => {
+      const q = farmerSearch.toLowerCase();
+      const matchName  = (f.name || "").toLowerCase().includes(q);
+      const matchPhone = (f.phone || "").includes(q);
+      const matchDist  = (f.district || "").toLowerCase().includes(q);
+      const matchDistrFilter = districtFilter === "All" || f.district === districtFilter;
+      return (matchName || matchPhone || matchDist) && matchDistrFilter;
+    });
+  }, [farmers, farmerSearch, districtFilter]);
 
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
-  const paginated  = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(filteredFarmers.length / itemsPerPage);
+  const paginatedFarmers = useMemo(() => {
+    return filteredFarmers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  }, [filteredFarmers, currentPage]);
 
-  const getFarmerFarmCount = (userId) => farms.filter(f => f.userId === userId).length;
-  const getFarmerArea = (userId) => farms.filter(f => f.userId === userId).reduce((s, f) => s + (Number(f.area) || 0), 0).toFixed(1);
+  const getFarmerFarmCount = (userId) => farms.filter(f => f.userId === userId || f.farmerId === userId).length;
+  const getFarmerArea = (userId) => farms.filter(f => f.userId === userId || f.farmerId === userId).reduce((s, f) => s + (Number(f.area) || 0), 0).toFixed(1);
+
+  // Farms & Crops Desk Helpers
+  const getFarmerName = (userId) => {
+    const f = reduxUsers.find(u => u.userId === userId);
+    return f?.name || `Farmer #${userId}`;
+  };
+
+  const getCropsForFarm = (farmId) => crops.filter(c => c.farmId === farmId);
+
+  // Sub-table search filters
+  const fQuery = farmSearch.toLowerCase();
+  const filteredFarms = useMemo(() => {
+    return farms.filter(f =>
+      (f.farmName || "").toLowerCase().includes(fQuery) ||
+      (f.location || "").toLowerCase().includes(fQuery) ||
+      (f.soilType || "").toLowerCase().includes(fQuery)
+    );
+  }, [farms, fQuery]);
+
+  const filteredCrops = useMemo(() => {
+    return crops.filter(c =>
+      (c.cropName || "").toLowerCase().includes(fQuery) ||
+      (c.status || "").toLowerCase().includes(fQuery)
+    );
+  }, [crops, fQuery]);
+
+  // Analytics derivation
+  const cropDist = analytics?.cropDistribution || [];
+  const soilDist = analytics?.soilDistribution || [];
+
+  const cropBarData = useMemo(() => {
+    return cropDist.map((d, i) => ({
+      crop: d.name || d.crop_name || "",
+      count: Number(d.value || d.count || 0),
+      color: COLORS[i % COLORS.length]
+    }));
+  }, [cropDist]);
+
+  const soilPieData = useMemo(() => {
+    return soilDist.map(d => ({
+      name: d.name || d.soil_type || "",
+      value: Number(d.value || d.count || 0)
+    }));
+  }, [soilDist]);
 
   return (
     <div className="officer-container">
-
       {/* Overlay */}
       <div className={`sidebar-overlay ${showSidebar ? "show-overlay" : ""}`} onClick={() => setShowSidebar(false)} />
 
@@ -174,9 +251,8 @@ export default function Farmers() {
         </nav>
       </aside>
 
-      {/* Main */}
+      {/* Main Container */}
       <div className="dashboard-main">
-
         {/* Navbar */}
         <header className="dashboard-navbar">
           <div className="navbar-left">
@@ -186,9 +262,9 @@ export default function Farmers() {
               <input
                 className="search-input"
                 type="text"
-                placeholder="Search by name, phone, or district..."
-                value={searchTerm}
-                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                placeholder="Search farmers..."
+                value={farmerSearch}
+                onChange={e => { setFarmerSearch(e.target.value); setCurrentPage(1); }}
               />
             </div>
           </div>
@@ -204,97 +280,420 @@ export default function Farmers() {
           </div>
         </header>
 
-        {/* Page Header */}
-        <div style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", margin: 0 }}>Farmers Directory</h2>
-          <p style={{ color: "#64748b", fontSize: 14, marginTop: 4 }}>{filtered.length} farmer{filtered.length !== 1 ? "s" : ""} found</p>
-        </div>
+        {/* ===================================================
+                 SECTION 1: FARMERS DIRECTORY
+        =================================================== */}
+        <section style={{ marginBottom: 40 }}>
+          <div style={{ marginBottom: 24 }}>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", margin: 0 }}>Farmers Directory</h2>
+            <p style={{ color: "#64748b", fontSize: 14, marginTop: 4 }}>
+              {filteredFarmers.length} farmer{filteredFarmers.length !== 1 ? "s" : ""} found
+            </p>
+          </div>
 
-        {/* Filters */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-          <select
-            value={districtFilter}
-            onChange={e => { setDistrictFilter(e.target.value); setCurrentPage(1); }}
-            style={{ padding: "8px 14px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, fontWeight: 600, color: "#334155", background: "#fff", cursor: "pointer" }}
-          >
-            {districts.map(d => <option key={d}>{d}</option>)}
-          </select>
-        </div>
+          {/* Filters */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+            <select
+              value={districtFilter}
+              onChange={e => { setDistrictFilter(e.target.value); setCurrentPage(1); }}
+              style={{ padding: "8px 14px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, fontWeight: 600, color: "#334155", background: "#fff", cursor: "pointer" }}
+            >
+              {districts.map(d => <option key={d}>{d}</option>)}
+            </select>
+          </div>
 
-        {/* Table */}
-        <div className="farmer-table-container">
-          {loading ? (
-            <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontWeight: 600 }}>Loading farmers...</div>
-          ) : paginated.length > 0 ? (
-            <table className="farmer-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Name</th>
-                  <th>Phone</th>
-                  <th>District</th>
-                  <th>State</th>
-                  <th>Farms</th>
-                  <th>Area (ac)</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginated.map((f, i) => (
-                  <tr key={f.userId} style={{ cursor: "pointer" }} onClick={() => openDrawer(f)}>
-                    <td style={{ color: "#94a3b8", fontSize: 12 }}>{(currentPage - 1) * itemsPerPage + i + 1}</td>
-                    <td><strong>{f.name}</strong></td>
-                    <td>{f.phone || "-"}</td>
-                    <td>
-                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <FaMapMarkerAlt style={{ color: "#16a34a", fontSize: 11 }} />
-                        {f.district || "-"}
-                      </span>
-                    </td>
-                    <td>{f.state || "-"}</td>
-                    <td>{getFarmerFarmCount(f.userId)}</td>
-                    <td>{getFarmerArea(f.userId)} ac</td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={() => openDrawer(f)}
-                        style={{ padding: "5px 12px", borderRadius: 8, border: "1.5px solid #16a34a", background: "transparent", color: "#16a34a", fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
-                      >
-                        <FaEye /> View
-                      </button>
-                    </td>
+          {/* Farmers Table */}
+          <div className="farmer-table-container">
+            {loading ? (
+              <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontWeight: 600 }}>Loading farmers...</div>
+            ) : paginatedFarmers.length > 0 ? (
+              <table className="farmer-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>District</th>
+                    <th>State</th>
+                    <th>Farms</th>
+                    <th>Area (ac)</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontWeight: 600 }}>
-              No farmers found matching your search.
+                </thead>
+                <tbody>
+                  {paginatedFarmers.map((f, i) => (
+                    <tr key={f.userId} style={{ cursor: "pointer" }} onClick={() => openDrawer(f)}>
+                      <td style={{ color: "#94a3b8", fontSize: 12 }}>{(currentPage - 1) * itemsPerPage + i + 1}</td>
+                      <td><strong>{f.name}</strong></td>
+                      <td>{f.phone || "-"}</td>
+                      <td>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <FaMapMarkerAlt style={{ color: "#16a34a", fontSize: 11 }} />
+                          {f.district || "-"}
+                        </span>
+                      </td>
+                      <td>{f.state || "-"}</td>
+                      <td>{getFarmerFarmCount(f.userId)}</td>
+                      <td>{getFarmerArea(f.userId)} ac</td>
+                      <td onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => openDrawer(f)}
+                          style={{ padding: "5px 12px", borderRadius: 8, border: "1.5px solid #16a34a", background: "transparent", color: "#16a34a", fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
+                        >
+                          <FaEye /> View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontWeight: 600 }}>
+                No farmers registered yet.
+              </div>
+            )}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 20 }}>
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                style={{ padding: "6px 14px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: currentPage === 1 ? "#f1f5f9" : "#fff", cursor: currentPage === 1 ? "not-allowed" : "pointer", fontWeight: 600, fontSize: 13 }}
+              >← Prev</button>
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCurrentPage(i + 1)}
+                  style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: currentPage === i + 1 ? "#16a34a" : "#fff", color: currentPage === i + 1 ? "#fff" : "#334155", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                >{i + 1}</button>
+              ))}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                style={{ padding: "6px 14px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: currentPage === totalPages ? "#f1f5f9" : "#fff", cursor: currentPage === totalPages ? "not-allowed" : "pointer", fontWeight: 600, fontSize: 13 }}
+              >Next →</button>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 20 }}>
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              style={{ padding: "6px 14px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: currentPage === 1 ? "#f1f5f9" : "#fff", cursor: currentPage === 1 ? "not-allowed" : "pointer", fontWeight: 600, fontSize: 13 }}
-            >← Prev</button>
-            {Array.from({ length: totalPages }, (_, i) => (
-              <button
-                key={i}
-                onClick={() => setCurrentPage(i + 1)}
-                style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: currentPage === i + 1 ? "#16a34a" : "#fff", color: currentPage === i + 1 ? "#fff" : "#334155", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
-              >{i + 1}</button>
-            ))}
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              style={{ padding: "6px 14px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: currentPage === totalPages ? "#f1f5f9" : "#fff", cursor: currentPage === totalPages ? "not-allowed" : "pointer", fontWeight: 600, fontSize: 13 }}
-            >Next →</button>
+        {/* ===================================================
+                 SECTION 2: FARMS & CROPS OPERATIONS DESK
+        =================================================== */}
+        <section style={{ borderTop: "2px solid #cbd5e1", paddingTop: 30 }}>
+          <div style={{ marginBottom: 24 }}>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", margin: 0 }}>Farms & Crops Desk</h2>
+            <p style={{ color: "#64748b", fontSize: 14, marginTop: 4 }}>Monitor registered agricultural fields, soil types, and active cultivation crops.</p>
           </div>
-        )}
+
+          {/* Stat Cards */}
+          <section className="stats-section" style={{ marginBottom: 24 }}>
+            {[
+              { title: "Total Farms",   value: farms.length,                         icon: <MdAgriculture />, color: "#15803d", bg: "#dcfce7" },
+              { title: "Total Crops",   value: crops.length,                          icon: <FaLeaf />,       color: "#f59e0b", bg: "#fef3c7" },
+              { title: "Active Crops",  value: crops.filter(c => c.status === "ACTIVE").length, icon: <FaSeedling />, color: "#2563eb", bg: "#dbeafe" },
+              { title: "Total Area",    value: `${farms.reduce((s, f) => s + (Number(f.area) || 0), 0).toFixed(1)} ac`, icon: <FaMapMarkerAlt />, color: "#8b5cf6", bg: "#ede9fe" },
+            ].map((s, i) => (
+              <div key={i} className="stats-card">
+                <div className="stats-icon" style={{ background: s.bg, color: s.color }}>{s.icon}</div>
+                <div className="stats-content"><h4>{s.title}</h4><h2>{s.value}</h2></div>
+              </div>
+            ))}
+          </section>
+
+          {/* Analytics Charts */}
+          <section className="analytics-row" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 24, marginBottom: 28 }}>
+            {/* Crop Distribution Bar Chart */}
+            <div className="chart-card">
+              <div className="chart-header" style={{ marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Crop Distribution</h3>
+                <span style={{ fontSize: 12, color: "#64748b" }}>Active crops by type</span>
+              </div>
+              {cropBarData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={cropBarData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+                    <XAxis dataKey="crop" tick={{ fill: "#334155", fontSize: 11, fontWeight: 600 }} />
+                    <YAxis tick={{ fill: "#334155", fontSize: 11, fontWeight: 600 }} />
+                    <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderRadius: "10px", color: "#fff", border: "none" }} />
+                    <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                      {cropBarData.map((e, i) => <Cell key={i} fill={e.color} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontWeight: 600 }}>
+                  No crop data available yet
+                </div>
+              )}
+            </div>
+
+            {/* Soil Type Distribution Pie Chart */}
+            <div className="chart-card">
+              <div className="chart-header" style={{ marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Soil Types</h3>
+                <span style={{ fontSize: 12, color: "#64748b" }}>Farm distribution</span>
+              </div>
+              {soilPieData.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <PieChart>
+                      <Pie data={soilPieData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} paddingAngle={4}>
+                        {soilPieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderRadius: "10px", color: "#fff", border: "none" }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+                    {soilPieData.map((d, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: 2, background: COLORS[i % COLORS.length] }} />
+                          <span style={{ fontSize: 12, color: "#334155", fontWeight: 600 }}>{d.name}</span>
+                        </div>
+                        <strong style={{ fontSize: 12, color: "#0f172a" }}>{d.value} farm{d.value !== 1 ? "s" : ""}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontWeight: 600, textAlign: "center" }}>
+                  No farm data yet
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Sub-Tab Bar & Search Row */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, gap: 20, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 4, background: "#f1f5f9", borderRadius: 12, padding: 4 }}>
+              {[
+                { key: "farms", label: `Farms (${farms.length})` },
+                { key: "crops", label: `Crops (${crops.length})` },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => { setActiveTab(tab.key); setSelectedFarm(null); setSelectedCrop(null); setFarmSearch(""); }}
+                  style={{
+                    padding: "8px 22px", borderRadius: 10, border: "none", fontWeight: 700,
+                    fontSize: 13, cursor: "pointer", transition: "all 0.2s",
+                    background: activeTab === tab.key ? "#16a34a" : "transparent",
+                    color: activeTab === tab.key ? "#fff" : "#64748b",
+                  }}
+                >{tab.label}</button>
+              ))}
+            </div>
+
+            <div style={{ position: "relative", width: 280 }}>
+              <FaSearch style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#64748b" }} />
+              <input
+                type="text"
+                placeholder={activeTab === "farms" ? "Search farms..." : "Search crops..."}
+                value={farmSearch}
+                onChange={e => setFarmSearch(e.target.value)}
+                style={{ width: "100%", padding: "10px 14px 10px 38px", borderRadius: 10, border: "1.5px solid #cbd5e1", outline: "none", fontSize: 13 }}
+              />
+            </div>
+          </div>
+
+          {/* Content: Two-column layout when item selected */}
+          <div style={{ display: "grid", gridTemplateColumns: selectedFarm || selectedCrop ? "1fr 1fr" : "1fr", gap: 24 }}>
+            {/* Left: Table */}
+            <div className="farmer-table-container">
+              {activeTab === "farms" ? (
+                <>
+                  <div style={{ marginBottom: 14 }}>
+                    <strong style={{ color: "#0f172a", fontSize: 13 }}>{filteredFarms.length} farms registered</strong>
+                  </div>
+                  {filteredFarms.length > 0 ? (
+                    <table className="farmer-table">
+                      <thead>
+                        <tr>
+                          <th>Farm Name</th>
+                          <th>Owner</th>
+                          <th>Area</th>
+                          <th>Soil Type</th>
+                          <th>Water Source</th>
+                          <th>Location</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredFarms.map(f => (
+                          <tr
+                            key={f.farmId}
+                            style={{ cursor: "pointer", background: selectedFarm?.farmId === f.farmId ? "#f0fdf4" : "" }}
+                            onClick={() => { setSelectedFarm(f); setSelectedCrop(null); }}
+                          >
+                            <td><strong>{f.farmName}</strong></td>
+                            <td>{getFarmerName(f.userId || f.farmerId)}</td>
+                            <td>{f.area} ac</td>
+                            <td>{f.soilType || "-"}</td>
+                            <td>{f.waterSource || "-"}</td>
+                            <td>
+                              <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+                                <FaMapMarkerAlt style={{ color: "#16a34a", fontSize: 10 }} />
+                                {f.location ? f.location.split(" | ")[0] : "-"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontWeight: 600 }}>No farms registered yet.</div>
+                  )}
+                </>
+              ) : (
+                /* Crops Table */
+                <>
+                  <div style={{ marginBottom: 14 }}>
+                    <strong style={{ color: "#0f172a", fontSize: 13 }}>{filteredCrops.length} crops registered</strong>
+                  </div>
+                  {filteredCrops.length > 0 ? (
+                    <table className="farmer-table">
+                      <thead>
+                        <tr>
+                          <th>Crop Name</th>
+                          <th>Farmer</th>
+                          <th>Farm</th>
+                          <th>Status</th>
+                          <th>Planted</th>
+                          <th>Harvest</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredCrops.map(c => {
+                          const parentFarm = farms.find(f => f.farmId === c.farmId);
+                          const badge = STATUS_BADGE[c.status] || STATUS_BADGE.PENDING;
+                          return (
+                            <tr
+                              key={c.cropId}
+                              style={{ cursor: "pointer", background: selectedCrop?.cropId === c.cropId ? "#f0fdf4" : "" }}
+                              onClick={() => { setSelectedCrop(c); setSelectedFarm(null); }}
+                            >
+                              <td><strong>{c.cropName}</strong></td>
+                              <td>{getFarmerName(parentFarm?.userId || parentFarm?.farmerId)}</td>
+                              <td>{parentFarm?.farmName || "-"}</td>
+                              <td>
+                                <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: badge.bg, color: badge.color }}>
+                                  {c.status}
+                                </span>
+                              </td>
+                              <td style={{ fontSize: 12, color: "#64748b" }}>{c.plantedDate || "-"}</td>
+                              <td style={{ fontSize: 12, color: "#64748b" }}>{c.expectedHarvestDate || "-"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontWeight: 600 }}>No crops registered yet.</div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Right: Detail Panel */}
+            {(selectedFarm || selectedCrop) && (
+              <div style={{ background: "#fff", borderRadius: 18, border: "1.5px solid #e2e8f0", padding: 24, boxShadow: "0 4px 24px rgba(0,0,0,0.06)", alignSelf: "start" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#0f172a" }}>
+                    {selectedFarm ? selectedFarm.farmName : selectedCrop?.cropName}
+                  </h3>
+                  <button onClick={() => { setSelectedFarm(null); setSelectedCrop(null); }} style={{ background: "transparent", border: "none", fontSize: 18, cursor: "pointer", color: "#94a3b8" }}>
+                    <FaTimes />
+                  </button>
+                </div>
+
+                {selectedFarm && (
+                  <>
+                    {/* Farm Details */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                      {[
+                        { label: "Owner",       value: getFarmerName(selectedFarm.userId || selectedFarm.farmerId) },
+                        { label: "Total Area",  value: `${selectedFarm.area} acres` },
+                        { label: "Soil Type",   value: selectedFarm.soilType || "-" },
+                        { label: "Water Source",value: selectedFarm.waterSource || "-" },
+                        { label: "Location",    value: selectedFarm.location ? selectedFarm.location.split(" | ")[0] : "-" },
+                      ].map((item, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "9px 12px", background: "#f8fafc", borderRadius: 9, border: "1px solid #e2e8f0" }}>
+                          <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{item.label}</span>
+                          <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 700 }}>{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Leaflet Visual Map Viewer */}
+                    <div style={{ marginBottom: 20 }}>
+                      <LeafletViewer farm={selectedFarm} />
+                    </div>
+
+                    {/* Registered crops */}
+                    <div>
+                      <h4 style={{ fontSize: 13, fontWeight: 700, color: "#334155", marginBottom: 10 }}>
+                        Registered Crops ({getCropsForFarm(selectedFarm.farmId).length})
+                      </h4>
+                      {getCropsForFarm(selectedFarm.farmId).length === 0 ? (
+                        <p style={{ fontSize: 13, color: "#94a3b8" }}>No crops registered on this farm.</p>
+                      ) : getCropsForFarm(selectedFarm.farmId).map(c => {
+                        const badge = STATUS_BADGE[c.status] || STATUS_BADGE.PENDING;
+                        return (
+                          <div key={c.cropId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "#f0fdf4", borderRadius: 9, marginBottom: 6, border: "1px solid #bbf7d0" }}>
+                            <strong style={{ fontSize: 13, color: "#15803d" }}>{c.cropName}</strong>
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: badge.bg, color: badge.color }}>{c.status}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {selectedCrop && (() => {
+                  const parentFarm = farms.find(f => f.farmId === selectedCrop.farmId);
+                  const badge = STATUS_BADGE[selectedCrop.status] || STATUS_BADGE.PENDING;
+                  const totalFarmArea = parentFarm ? parentFarm.area : 0;
+                  const cropPlantedArea = selectedCrop.area ? selectedCrop.area : (Number(totalFarmArea) * 0.65).toFixed(2);
+
+                  return (
+                    <>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                        {[
+                          { label: "Farmer",          value: getFarmerName(parentFarm?.userId || parentFarm?.farmerId) },
+                          { label: "Farm",            value: parentFarm?.farmName || "-" },
+                          { label: "Planted Crop Area",value: `${cropPlantedArea} acres` },
+                          { label: "Total Farm Area",  value: `${totalFarmArea} acres` },
+                          { label: "Status",          value: <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: badge.bg, color: badge.color }}>{selectedCrop.status}</span> },
+                          { label: "Planted Date",    value: selectedCrop.plantedDate || "-" },
+                          { label: "Expected Harvest",value: selectedCrop.expectedHarvestDate || "-" },
+                          { label: "Duration",        value: selectedCrop.duration ? `${selectedCrop.duration} days` : "-" },
+                        ].map((item, i) => (
+                          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", background: "#f8fafc", borderRadius: 9, border: "1px solid #e2e8f0" }}>
+                            <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{item.label}</span>
+                            <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 700 }}>{item.value}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Parent Farm Map */}
+                      {parentFarm && (
+                        <div>
+                          <h4 style={{ fontSize: 13, fontWeight: 700, color: "#334155", marginBottom: 10 }}>Farm Location</h4>
+                          <LeafletViewer farm={parentFarm} />
+                          {selectedCrop.description && (
+                            <p style={{ marginTop: 12, fontSize: 13, color: "#475569", background: "#f8fafc", padding: "10px 14px", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                              {selectedCrop.description}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        </section>
       </div>
 
       {/* ── Farmer Detail Drawer ── */}
@@ -357,21 +756,131 @@ export default function Farmers() {
                 <>
                   {/* INFO TAB */}
                   {drawerTab === "info" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                      {[
-                        { label: "Full Name",         value: selectedFarmer.name },
-                        { label: "Email",             value: selectedFarmer.email },
-                        { label: "Phone",             value: selectedFarmer.phone || "-" },
-                        { label: "District",          value: selectedFarmer.district || "-" },
-                        { label: "State",             value: selectedFarmer.state || "-" },
-                        { label: "Registration Date", value: selectedFarmer.createdAt ? new Date(selectedFarmer.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "-" },
-                        { label: "Farmer ID",         value: `#${selectedFarmer.userId}` },
-                      ].map((item, i) => (
-                        <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
-                          <span style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>{item.label}</span>
-                          <span style={{ fontSize: 13, color: "#0f172a", fontWeight: 700 }}>{item.value}</span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                      
+                      {/* Section 1: Personal */}
+                      <div>
+                        <h4 style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 800, color: "#16a34a", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 4 }}>
+                          1. Personal Information
+                        </h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {[
+                            { label: "Full Name",         value: selectedFarmer.name },
+                            { label: "Date of Birth",     value: selectedFarmer.dob || "-" },
+                            { label: "Gender",            value: selectedFarmer.gender || "-" },
+                            { label: "Mobile Number",     value: selectedFarmer.phone || "-" },
+                            { label: "Email Address",     value: selectedFarmer.email },
+                            { label: "Registration Date", value: selectedFarmer.createdAt ? new Date(selectedFarmer.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "-" },
+                            { label: "Farmer ID",         value: `#${selectedFarmer.userId}` },
+                          ].map((item, i) => (
+                            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                              <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{item.label}</span>
+                              <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 700 }}>{item.value}</span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      </div>
+
+                      {/* Section 2: Location */}
+                      <div>
+                        <h4 style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 800, color: "#16a34a", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 4 }}>
+                          2. Location Details
+                        </h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {[
+                            { label: "State",               value: selectedFarmer.state || "-" },
+                            { label: "District",            value: selectedFarmer.district || "-" },
+                            { label: "Taluk / Block",       value: selectedFarmer.taluk || "-" },
+                            { label: "Village / Panchayat",  value: selectedFarmer.village || "-" },
+                            { label: "PIN Code",            value: selectedFarmer.pincode || "-" },
+                          ].map((item, i) => (
+                            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                              <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{item.label}</span>
+                              <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 700 }}>{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Section 3: Land / Farmer Info */}
+                      <div>
+                        <h4 style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 800, color: "#16a34a", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 4 }}>
+                          3. Land / Farmer Information
+                        </h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {[
+                            { label: "Land Ownership Type",        value: selectedFarmer.landOwnershipType || "-" },
+                            { label: "Total Landholding",          value: selectedFarmer.totalLandholding ? `${selectedFarmer.totalLandholding} acres` : "-" },
+                            { label: "Farmer Category",            value: selectedFarmer.farmerCategory || "-" },
+                            { label: "Ownership Document Available",value: selectedFarmer.ownershipDocumentAvailable != null ? (selectedFarmer.ownershipDocumentAvailable ? "Yes" : "No") : "-" },
+                          ].map((item, i) => (
+                            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                              <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{item.label}</span>
+                              <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 700 }}>{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Section 4: Financial */}
+                      <div>
+                        <h4 style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 800, color: "#16a34a", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 4 }}>
+                          4. Financial Information
+                        </h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {[
+                            { label: "Annual Family Income Range",   value: selectedFarmer.annualIncomeRange || "-" },
+                            { label: "Income Certificate Available",  value: selectedFarmer.incomeCertificateAvailable != null ? (selectedFarmer.incomeCertificateAvailable ? "Yes" : "No") : "-" },
+                          ].map((item, i) => (
+                            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                              <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{item.label}</span>
+                              <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 700 }}>{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Section 5: Farm Assets */}
+                      <div>
+                        <h4 style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 800, color: "#16a34a", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 4 }}>
+                          5. Farm Assets
+                        </h4>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+                          {[
+                            { label: "Tractor",                value: selectedFarmer.hasTractor ? "✓ Yes" : "✗ No", active: selectedFarmer.hasTractor },
+                            { label: "Agri Machinery",         value: selectedFarmer.hasMachinery ? "✓ Yes" : "✗ No", active: selectedFarmer.hasMachinery },
+                            { label: "Irrigation Equipment",   value: selectedFarmer.hasIrrigationEquipment ? "✓ Yes" : "✗ No", active: selectedFarmer.hasIrrigationEquipment },
+                            { label: "Pump Set",               value: selectedFarmer.hasPumpSet ? "✓ Yes" : "✗ No", active: selectedFarmer.hasPumpSet },
+                            { label: "Storage Facility",       value: selectedFarmer.hasStorageFacility ? "✓ Yes" : "✗ No", active: selectedFarmer.hasStorageFacility },
+                            { label: "Greenhouse / Polyhouse", value: selectedFarmer.hasGreenhouse ? "✓ Yes" : "✗ No", active: selectedFarmer.hasGreenhouse },
+                          ].map((item, i) => (
+                            <div key={i} style={{ padding: "8px 10px", background: item.active ? "#f0fdf4" : "#f8fafc", borderRadius: 8, border: item.active ? "1px solid #86efac" : "1px solid #e2e8f0" }}>
+                              <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>{item.label}</div>
+                              <strong style={{ fontSize: 12, color: item.active ? "#15803d" : "#64748b" }}>{item.value}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Section 6: Farming Background */}
+                      <div>
+                        <h4 style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 800, color: "#16a34a", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 4 }}>
+                          6. Farming Background
+                        </h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {[
+                            { label: "Type of Farming",                 value: selectedFarmer.farmingType || "-" },
+                            { label: "Number of Years Farming",         value: selectedFarmer.yearsFarming ? `${selectedFarmer.yearsFarming} years` : "-" },
+                            { label: "Group / Organization Membership", value: selectedFarmer.organizationMembership || "-" },
+                          ].map((item, i) => (
+                            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                              <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{item.label}</span>
+                              <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 700 }}>{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
                     </div>
                   )}
 
@@ -386,11 +895,12 @@ export default function Farmers() {
                             <strong style={{ color: "#0f172a", fontSize: 14 }}>{f.farmName}</strong>
                             <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 700 }}>{f.area} ac</span>
                           </div>
-                          <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#64748b" }}>
+                          <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#64748b", marginBottom: 12 }}>
                             <span>🪨 {f.soilType || "-"}</span>
                             <span>💧 {f.waterSource || "-"}</span>
-                            <span>📍 {f.location || "-"}</span>
+                            <span>📍 {f.location ? f.location.split(" | ")[0] : "-"}</span>
                           </div>
+                          <LeafletViewer farm={f} />
                         </div>
                       ))}
                     </div>
@@ -401,22 +911,28 @@ export default function Farmers() {
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                       {farmerCrops.length === 0 ? (
                         <div style={{ textAlign: "center", color: "#94a3b8", padding: 30 }}>No crops registered</div>
-                      ) : farmerCrops.map(c => (
-                        <div key={c.cropId} style={{ padding: "14px 16px", background: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                            <strong style={{ color: "#0f172a", fontSize: 14 }}>{c.cropName}</strong>
-                            <span style={{
-                              fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
-                              background: c.status === "ACTIVE" ? "#dcfce7" : c.status === "HARVESTED" ? "#dbeafe" : "#fee2e2",
-                              color: c.status === "ACTIVE" ? "#15803d" : c.status === "HARVESTED" ? "#1d4ed8" : "#dc2626"
-                            }}>{c.status}</span>
+                      ) : farmerCrops.map(c => {
+                        const pf = farms.find(f => f.farmId === c.farmId);
+                        const totalFarmArea = pf ? pf.area : 0;
+                        const cropPlantedArea = c.area ? c.area : (Number(totalFarmArea) * 0.65).toFixed(2);
+                        return (
+                          <div key={c.cropId} style={{ padding: "14px 16px", background: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                              <strong style={{ color: "#0f172a", fontSize: 14 }}>{c.cropName}</strong>
+                              <span style={{
+                                fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
+                                background: c.status === "ACTIVE" ? "#dcfce7" : c.status === "HARVESTED" ? "#dbeafe" : "#fee2e2",
+                                color: c.status === "ACTIVE" ? "#15803d" : c.status === "HARVESTED" ? "#1d4ed8" : "#dc2626"
+                              }}>{c.status}</span>
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "#64748b" }}>
+                              <div>🌾 Planted Area: {cropPlantedArea} ac (Total Farm: {totalFarmArea} ac)</div>
+                              <div>🌱 Planted: {c.plantedDate || "-"}</div>
+                              <div>🗓️ Harvest: {c.expectedHarvestDate || "-"}</div>
+                            </div>
                           </div>
-                          <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#64748b" }}>
-                            <span>🌱 Planted: {c.plantedDate || "-"}</span>
-                            <span>🗓️ Harvest: {c.expectedHarvestDate || "-"}</span>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 

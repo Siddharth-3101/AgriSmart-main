@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { toast } from "react-toastify";
 import {
-  FaBars, FaHome, FaUsers, FaTractor, FaClipboardList,
+  FaHome, FaUsers, FaClipboardList,
   FaBell, FaSearch, FaUserCircle, FaMapMarkerAlt,
   FaEnvelope, FaPhone, FaEdit, FaSignOutAlt, FaShieldAlt, FaKey, FaSave, FaTimes
 } from "react-icons/fa";
@@ -12,35 +12,29 @@ import { setUser, setToken } from "../main";
 import { userApi } from "../services/api";
 
 const MENU = [
-  { name: "Dashboard",     icon: <FaHome />,         path: "/officer/dashboard",   key: "dashboard" },
-  { name: "Farmers",       icon: <FaUsers />,         path: "/officer/farmers",     key: "farmers"   },
-  { name: "Farms & Crops", icon: <FaTractor />,       path: "/officer/ofarms",      key: "farms"     },
-  { name: "Schemes",       icon: <FaClipboardList />, path: "/officer/oschemes",    key: "schemes"   },
-  { name: "Broadcast",     icon: <FaBell />,          path: "/officer/onification", key: "notif"     },
-  { name: "Profile",       icon: <FaUserCircle />,    path: "/officer/oprofile",    key: "profile"   },
+  { name: "Dashboard", icon: <FaHome />, path: "/officer/dashboard", key: "dashboard" },
+  { name: "Farmers", icon: <FaUsers />, path: "/officer/farmers", key: "farmers" },
+  { name: "Schemes", icon: <FaClipboardList />, path: "/officer/oschemes", key: "schemes" },
+  { name: "Broadcast", icon: <FaBell />, path: "/officer/onification", key: "notif" },
+  { name: "Profile", icon: <FaUserCircle />, path: "/officer/oprofile", key: "profile" },
 ];
 
 export default function OProfile() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  const user  = useSelector(s => s.agri.user);
+  const user = useSelector(s => s.agri.user);
   const token = useSelector(s => s.agri.token);
 
-  const [showSidebar, setShowSidebar] = useState(false);
-
   // Profile edit
-  const [editMode,   setEditMode]   = useState(false);
-  const [editName,   setEditName]   = useState(user?.name     || "");
-  const [editPhone,  setEditPhone]  = useState(user?.phone    || "");
-  const [editDistrict, setEditDistrict] = useState(user?.district || "");
-  const [editState,  setEditState]  = useState(user?.state    || "");
-  const [saving,     setSaving]     = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editName, setEditName] = useState(user?.name || "");
+  const [editPhone, setEditPhone] = useState(user?.phone || "");
+  const [saving, setSaving] = useState(false);
 
   // Password change
-  const [currentPw,  setCurrentPw]  = useState("");
-  const [newPw,      setNewPw]      = useState("");
-  const [confirmPw,  setConfirmPw]  = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
   const [changingPw, setChangingPw] = useState(false);
 
   const handleLogout = () => {
@@ -50,17 +44,15 @@ export default function OProfile() {
     navigate("/login");
   };
 
-  /* ── Save profile ── */
+  /* ── Save profile (Admin controls District/State assignment) ── */
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     if (!editName.trim()) { toast.error("Name is required."); return; }
     setSaving(true);
     try {
       const updated = await userApi.updateProfile(token, {
-        name:     editName.trim(),
-        phone:    editPhone.trim(),
-        district: editDistrict.trim(),
-        state:    editState.trim(),
+        name: editName.trim(),
+        phone: editPhone.trim(),
       });
       dispatch(setUser({ ...user, ...updated }));
       setEditMode(false);
@@ -79,7 +71,7 @@ export default function OProfile() {
     setChangingPw(true);
     try {
       await userApi.updateProfile(token, { password: newPw });
-      setCurrentPw(""); setNewPw(""); setConfirmPw("");
+      setNewPw(""); setConfirmPw("");
       toast.success("Password changed successfully!");
     } catch (err) {
       toast.error("Failed to change password: " + err.message);
@@ -88,22 +80,21 @@ export default function OProfile() {
   };
 
   const infoItems = [
-    { label: "Full Name",   value: user?.name,        icon: <FaUserCircle /> },
-    { label: "Email",       value: user?.email,       icon: <FaEnvelope />   },
-    { label: "Phone",       value: user?.phone || "-", icon: <FaPhone />     },
-    { label: "District",    value: user?.district || "-", icon: <FaMapMarkerAlt /> },
-    { label: "State",       value: user?.state || "-", icon: <FaShieldAlt /> },
-    { label: "Role",        value: user?.role || "OFFICER", icon: <FaShieldAlt /> },
-    { label: "Officer ID",  value: `#${user?.userId}`, icon: <FaKey />       },
-    { label: "Joined",      value: user?.createdAt ? new Date(user.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "-", icon: <FaEdit /> },
+    { label: "Full Name", value: user?.name, icon: <FaUserCircle /> },
+    { label: "Email", value: user?.email, icon: <FaEnvelope /> },
+    { label: "Phone", value: user?.phone || "-", icon: <FaPhone /> },
+    { label: "Assigned District (Admin Configured)", value: user?.district || "Not Assigned", icon: <FaMapMarkerAlt /> },
+    { label: "Assigned State (Admin Configured)", value: user?.state || "Not Assigned", icon: <FaShieldAlt /> },
+    { label: "Role Authority", value: user?.role || "OFFICER", icon: <FaShieldAlt /> },
+    { label: "Officer ID", value: `#${user?.userId}`, icon: <FaKey /> },
+    { label: "Joined", value: user?.createdAt ? new Date(user.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "-", icon: <FaEdit /> },
   ];
 
   return (
     <div className="officer-container">
 
-      <div className={`sidebar-overlay ${showSidebar ? "show-overlay" : ""}`} onClick={() => setShowSidebar(false)} />
-
-      <aside className={`officer-sidebar ${showSidebar ? "show-sidebar" : ""}`}>
+      {/* Sidebar */}
+      <aside className="officer-sidebar show-sidebar">
         <div className="sidebar-header">
           <h2>AgriSmart</h2>
           <p>Officer Portal</p>
@@ -127,7 +118,6 @@ export default function OProfile() {
         {/* Navbar */}
         <header className="dashboard-navbar">
           <div className="navbar-left">
-            <div className="menu-toggle-btn" onClick={() => setShowSidebar(true)}><FaBars /></div>
             <div className="search-container">
               <FaSearch className="search-icon" />
               <input className="search-input" type="text" placeholder="Search..." readOnly />
@@ -139,7 +129,7 @@ export default function OProfile() {
               <FaUserCircle className="profile-avatar" />
               <div className="profile-info">
                 <h4>{user?.name || "Officer"}</h4>
-                <p>Agriculture Officer</p>
+                <p>Agriculture Officer ({user?.district || "Region Assigned"})</p>
               </div>
             </div>
           </div>
@@ -152,11 +142,11 @@ export default function OProfile() {
           </div>
           <div>
             <h2 style={{ color: "#fff", margin: 0, fontSize: 22, fontWeight: 800 }}>{user?.name || "Officer"}</h2>
-            <p style={{ color: "rgba(255,255,255,0.8)", margin: "4px 0 8px", fontSize: 14 }}>Agriculture Officer · {user?.district || "Regional"} District</p>
+            <p style={{ color: "rgba(255,255,255,0.8)", margin: "4px 0 8px", fontSize: 14 }}>Agriculture Officer · {user?.district || "Regional"} Jurisdiction</p>
             <span style={{ background: "rgba(255,255,255,0.2)", color: "#fff", padding: "4px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700 }}>{user?.role || "OFFICER"}</span>
           </div>
           <button
-            onClick={() => { setEditMode(!editMode); setEditName(user?.name || ""); setEditPhone(user?.phone || ""); setEditDistrict(user?.district || ""); setEditState(user?.state || ""); }}
+            onClick={() => { setEditMode(!editMode); setEditName(user?.name || ""); setEditPhone(user?.phone || ""); }}
             style={{ marginLeft: "auto", padding: "10px 22px", borderRadius: 12, border: "2px solid rgba(255,255,255,0.5)", background: "transparent", color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
           >
             {editMode ? <><FaTimes /> Cancel Edit</> : <><FaEdit /> Edit Profile</>}
@@ -187,23 +177,43 @@ export default function OProfile() {
               <>
                 <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", margin: "0 0 16px" }}>Edit Profile</h3>
                 <form onSubmit={handleSaveProfile} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  {[
-                    { label: "Full Name *", value: editName, set: setEditName, type: "text", required: true },
-                    { label: "Phone",       value: editPhone, set: setEditPhone, type: "tel" },
-                    { label: "District",    value: editDistrict, set: setEditDistrict, type: "text" },
-                    { label: "State",       value: editState, set: setEditState, type: "text" },
-                  ].map((field, i) => (
-                    <div key={i}>
-                      <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 5 }}>{field.label}</label>
-                      <input
-                        type={field.type}
-                        value={field.value}
-                        onChange={e => field.set(e.target.value)}
-                        required={field.required}
-                        style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
-                      />
-                    </div>
-                  ))}
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 5 }}>Full Name *</label>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      required
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 5 }}>Phone Number</label>
+                    <input
+                      type="tel"
+                      value={editPhone}
+                      onChange={e => setEditPhone(e.target.value)}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 5 }}>Assigned District (Admin Controlled)</label>
+                    <input
+                      type="text"
+                      value={user?.district || "Not Assigned"}
+                      disabled
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", background: "#f1f5f9", color: "#64748b", fontSize: 13, boxSizing: "border-box", cursor: "not-allowed" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 5 }}>Assigned State (Admin Controlled)</label>
+                    <input
+                      type="text"
+                      value={user?.state || "Not Assigned"}
+                      disabled
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", background: "#f1f5f9", color: "#64748b", fontSize: 13, boxSizing: "border-box", cursor: "not-allowed" }}
+                    />
+                  </div>
                   <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
                     <button type="button" onClick={() => setEditMode(false)} style={{ flex: 1, padding: "11px", borderRadius: 12, border: "1.5px solid #e2e8f0", background: "#fff", color: "#64748b", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                       Cancel
@@ -223,21 +233,26 @@ export default function OProfile() {
               <FaKey style={{ color: "#16a34a" }} /> Change Password
             </h3>
             <form onSubmit={handlePasswordChange} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {[
-                { label: "New Password",     value: newPw,      set: setNewPw,      placeholder: "Min. 6 characters" },
-                { label: "Confirm Password", value: confirmPw,  set: setConfirmPw,  placeholder: "Repeat new password" },
-              ].map((field, i) => (
-                <div key={i}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 5 }}>{field.label}</label>
-                  <input
-                    type="password"
-                    value={field.value}
-                    onChange={e => field.set(e.target.value)}
-                    placeholder={field.placeholder}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
-                  />
-                </div>
-              ))}
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 5 }}>New Password</label>
+                <input
+                  type="password"
+                  value={newPw}
+                  onChange={e => setNewPw(e.target.value)}
+                  placeholder="Min. 6 characters"
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 5 }}>Confirm Password</label>
+                <input
+                  type="password"
+                  value={confirmPw}
+                  onChange={e => setConfirmPw(e.target.value)}
+                  placeholder="Repeat new password"
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
               <button
                 type="submit"
                 disabled={changingPw}
@@ -246,28 +261,10 @@ export default function OProfile() {
                 <FaKey /> {changingPw ? "Updating..." : "Update Password"}
               </button>
             </form>
-
-            {/* Quick actions */}
-            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #e2e8f0" }}>
-              <h4 style={{ fontSize: 13, fontWeight: 800, color: "#334155", marginBottom: 14 }}>Quick Actions</h4>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {[
-                  { label: "Farmers Directory", path: "/officer/farmers", color: "#16a34a", bg: "#dcfce7" },
-                  { label: "Scheme Administration", path: "/officer/oschemes", color: "#2563eb", bg: "#dbeafe" },
-                  { label: "Broadcast Center", path: "/officer/onification", color: "#f59e0b", bg: "#fef3c7" },
-                ].map((item, i) => (
-                  <button
-                    key={i}
-                    onClick={() => navigate(item.path)}
-                    style={{ padding: "10px 14px", borderRadius: 10, border: "none", background: item.bg, color: item.color, fontWeight: 700, fontSize: 13, cursor: "pointer", textAlign: "left" }}
-                  >→ {item.label}</button>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* Logout */}
+        {/* Session Logout */}
         <div style={{ background: "#fff", borderRadius: 18, border: "1.5px solid #fee2e2", padding: "18px 24px", marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#0f172a" }}>Session Management</h4>
@@ -280,6 +277,7 @@ export default function OProfile() {
             <FaSignOutAlt /> Logout
           </button>
         </div>
+
       </div>
     </div>
   );

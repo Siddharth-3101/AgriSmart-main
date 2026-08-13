@@ -46,6 +46,14 @@ public class DocumentController {
         return ResponseEntity.ok(documentService.getDocumentsByUserId(userId));
     }
 
+    /* ── Officer/Admin: Get all farmer documents ── */
+    @GetMapping("/all")
+    @PreAuthorize("hasAnyRole('OFFICER', 'ADMIN')")
+    @Operation(summary = "Get all farmer documents", description = "Officer or Admin retrieves all farmer uploaded documents")
+    public ResponseEntity<List<DocumentResponse>> getAllDocuments() {
+        return ResponseEntity.ok(documentService.getAllDocuments());
+    }
+
     /* ── Officer/Admin: Get documents for a specific farmer ── */
     @GetMapping("/user/{userId}")
     @PreAuthorize("hasAnyRole('OFFICER', 'ADMIN')")

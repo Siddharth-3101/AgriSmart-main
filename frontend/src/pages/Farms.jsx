@@ -16,7 +16,8 @@ import {
   FaLeaf,
   FaMapMarkerAlt,
   FaRulerCombined,
-  FaChartLine
+  FaChartLine,
+  FaUser
 } from "react-icons/fa";
 
 export default function Farms() {
@@ -91,10 +92,18 @@ export default function Farms() {
               <h1>Farm Management</h1>
               <p>Register, monitor and manage all your agricultural lands in one place.</p>
             </div>
-            <button className="farmAddBtn" onClick={() => navigate("/farm-management/add")}>
-              <FaPlus />
-              Add Farm
-            </button>
+            <div style={{ display: "flex", gap: "14px", alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                className="farmBackProfileBtn"
+                onClick={() => navigate("/profile")}
+              >
+                <FaUser /> Back to Profile
+              </button>
+              <button className="farmAddBtn" onClick={() => navigate("/farm-management/add")}>
+                <FaPlus />
+                Add Farm
+              </button>
+            </div>
           </div>
         </section>
 

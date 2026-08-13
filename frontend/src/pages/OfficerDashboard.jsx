@@ -4,23 +4,22 @@ import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { toast } from "react-toastify";
 import {
-  FaBars, FaHome, FaUsers, FaTractor, FaClipboardList,
+  FaHome, FaUsers, FaClipboardList,
   FaBell, FaSearch, FaUserCircle, FaLeaf, FaSignOutAlt,
-  FaMapMarkerAlt, FaSeedling, FaFileAlt, FaCheckCircle, FaTimesCircle, FaHourglassHalf
+  FaMapMarkerAlt, FaSeedling, FaFileAlt, FaCheckCircle, FaTimesCircle, FaHourglassHalf, FaDownload
 } from "react-icons/fa";
 import { MdAgriculture } from "react-icons/md";
 import { WiDaySunny, WiHumidity, WiStrongWind, WiRain } from "react-icons/wi";
 import {
   ResponsiveContainer, BarChart, Bar, Cell,
-  PieChart, Pie, Tooltip, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend
+  PieChart, Pie, Tooltip, XAxis, YAxis, CartesianGrid, LineChart, Line
 } from "recharts";
 import { setUser, setToken } from "../main";
-import { analyticsApi } from "../services/api";
+import { analyticsApi, documentApi } from "../services/api";
 
 const MENU = [
   { name: "Dashboard", icon: <FaHome />, path: "/officer/dashboard", key: "dashboard" },
   { name: "Farmers", icon: <FaUsers />, path: "/officer/farmers", key: "farmers" },
-  { name: "Farms & Crops", icon: <FaTractor />, path: "/officer/ofarms", key: "farms" },
   { name: "Schemes", icon: <FaClipboardList />, path: "/officer/oschemes", key: "schemes" },
   { name: "Broadcast", icon: <FaBell />, path: "/officer/onification", key: "notif" },
   { name: "Profile", icon: <FaUserCircle />, path: "/officer/oprofile", key: "profile" },
@@ -32,11 +31,16 @@ export default function OfficerDashboard() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  const [showSidebar, setShowSidebar] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [analytics, setAnalytics] = useState(null);
   const [weather, setWeather] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Real Farmer Documents State
+  const [documents, setDocuments] = useState([]);
+  const [docFilter, setDocFilter] = useState("ALL");
+  const [rejectingDocId, setRejectingDocId] = useState(null);
+  const [rejectionRemarks, setRejectionRemarks] = useState("");
 
   const user = useSelector(s => s.agri.user);
   const token = useSelector(s => s.agri.token);
@@ -52,6 +56,18 @@ export default function OfficerDashboard() {
     analyticsApi.getOfficerAnalytics(token)
       .then(data => { setAnalytics(data); setLoading(false); })
       .catch(() => { setLoading(false); });
+  }, [token]);
+
+  /* ── Fetch all uploaded farmer documents ── */
+  const fetchDocuments = () => {
+    if (!token) return;
+    documentApi.getAllDocuments(token)
+      .then(data => setDocuments(Array.isArray(data) ? data : []))
+      .catch(() => setDocuments([]));
+  };
+
+  useEffect(() => {
+    fetchDocuments();
   }, [token]);
 
   /* ── Fetch live weather for officer's district ── */
@@ -97,20 +113,16 @@ export default function OfficerDashboard() {
       .catch(() => { });
   }, [user]);
 
-  /* ── Derived data from analytics OR Redux fallback ── */
+  /* ── Derived statistics ── */
   const totalFarmers = analytics?.totalFarmers ?? usersList.filter(u => u.role === "FARMER").length;
   const totalFarms = analytics?.totalFarms ?? farms.length;
   const totalArea = analytics?.totalCultivatedArea ?? farms.reduce((s, f) => s + (Number(f.area) || 0), 0);
   const activeCrops = analytics?.activeCrops ?? crops.filter(c => c.status === "ACTIVE").length;
-  const pendingDocs = analytics?.pendingDocuments ?? 0;
-  const verifiedDocs = analytics?.verifiedDocuments ?? 0;
-  const rejectedDocs = analytics?.rejectedDocuments ?? 0;
 
   const monthlyReg = analytics?.monthlyRegistrations || [];
   const cropDist = analytics?.cropDistribution || [];
   const soilDist = analytics?.soilDistribution || [];
 
-  // Map crop distribution for bar chart
   const cropBarData = cropDist.map((d, i) => ({
     crop: d.name || d.crop_name || "",
     count: Number(d.value || d.count || 0),
@@ -122,8 +134,35 @@ export default function OfficerDashboard() {
     value: Number(d.value || d.count || 0)
   }));
 
-  const farmers = usersList.filter(u => u.role === "FARMER");
-  const recentFarmers = [...farmers].slice(-5).reverse();
+  /* ── Document Verification Actions ── */
+  const handleApproveDocument = (docId) => {
+    documentApi.verify(token, docId, "VERIFIED")
+      .then(() => {
+        toast.success("Document approved successfully.");
+        fetchDocuments();
+      })
+      .catch(err => toast.error(err.message || "Failed to approve document."));
+  };
+
+  const handleRejectDocument = (docId) => {
+    if (!rejectionRemarks.trim()) {
+      toast.warning("Please enter rejection remarks.");
+      return;
+    }
+    documentApi.verify(token, docId, "REJECTED", rejectionRemarks)
+      .then(() => {
+        toast.success("Document rejected.");
+        setRejectingDocId(null);
+        setRejectionRemarks("");
+        fetchDocuments();
+      })
+      .catch(err => toast.error(err.message || "Failed to reject document."));
+  };
+
+  const handleDownloadDocument = (docId, filename) => {
+    documentApi.download(token, docId, filename)
+      .catch(err => toast.error(err.message || "Download failed."));
+  };
 
   /* ── Logout ── */
   const handleLogout = () => {
@@ -139,17 +178,16 @@ export default function OfficerDashboard() {
     }
   };
 
+  const filteredDocs = documents.filter(d => {
+    if (docFilter === "ALL") return true;
+    return d.verificationStatus === docFilter;
+  });
+
   return (
     <div className="officer-container">
 
-      {/* Overlay */}
-      <div
-        className={`sidebar-overlay ${showSidebar ? "show-overlay" : ""}`}
-        onClick={() => setShowSidebar(false)}
-      />
-
       {/* Sidebar */}
-      <aside className={`officer-sidebar ${showSidebar ? "show-sidebar" : ""}`}>
+      <aside className="officer-sidebar show-sidebar">
         <div className="sidebar-header">
           <h2>AgriSmart</h2>
           <p>Officer Portal</p>
@@ -178,7 +216,6 @@ export default function OfficerDashboard() {
         {/* Navbar */}
         <header className="dashboard-navbar">
           <div className="navbar-left">
-            <div className="menu-toggle-btn" onClick={() => setShowSidebar(true)}><FaBars /></div>
             <div className="search-container">
               <FaSearch className="search-icon" style={{ cursor: "pointer" }} onClick={handleSearch} />
               <input
@@ -197,7 +234,7 @@ export default function OfficerDashboard() {
               <FaUserCircle className="profile-avatar" />
               <div className="profile-info">
                 <h4>{user?.name || "Officer"}</h4>
-                <p>Agriculture Officer</p>
+                <p>Agriculture Officer ({user?.district || "Region Assigned"})</p>
               </div>
             </div>
           </div>
@@ -207,7 +244,7 @@ export default function OfficerDashboard() {
         <section className="dashboard-banner" style={{ marginBottom: "32px" }}>
           <div className="banner-content">
             <h1>Welcome Back 👋</h1>
-            <p>Monitor farmers, farms, crops and scheme activity across your region from one intelligent dashboard.</p>
+            <p>Monitor farmers, farms, crops, verify documents and review scheme activity across {user?.district || "your region"}.</p>
             <button className="banner-button" onClick={() => navigate("/officer/oschemes")}>View Schemes</button>
           </div>
           <div className="banner-image">
@@ -215,13 +252,13 @@ export default function OfficerDashboard() {
           </div>
         </section>
 
-        {/* Stat Cards Row 1 */}
-        <section className="stats-section" style={{ marginBottom: "24px" }}>
+        {/* Stat Cards Row */}
+        <section className="stats-section" style={{ marginBottom: "32px" }}>
           {[
             { title: "Total Farmers", value: totalFarmers, icon: <FaUsers />, color: "#166534", bg: "#dcfce7", path: "/officer/farmers" },
-            { title: "Total Farms", value: totalFarms, icon: <MdAgriculture />, color: "#15803d", bg: "#dbeafe", path: "/officer/ofarms" },
-            { title: "Active Crops", value: activeCrops, icon: <FaLeaf />, color: "#f59e0b", bg: "#fef3c7", path: "/officer/ofarms" },
-            { title: "Total Area", value: `${Number(totalArea).toFixed(1)}ac`, icon: <FaSeedling />, color: "#8b5cf6", bg: "#ede9fe", path: "/officer/ofarms" },
+            { title: "Total Farms", value: totalFarms, icon: <MdAgriculture />, color: "#15803d", bg: "#dbeafe", path: "/officer/farmers" },
+            { title: "Active Crops", value: activeCrops, icon: <FaLeaf />, color: "#f59e0b", bg: "#fef3c7", path: "/officer/farmers" },
+            { title: "Total Area", value: `${Number(totalArea).toFixed(1)} ac`, icon: <FaSeedling />, color: "#8b5cf6", bg: "#ede9fe", path: "/officer/farmers" },
           ].map((s, i) => (
             <div key={i} className="stats-card" onClick={() => navigate(s.path)} style={{ cursor: "pointer" }}>
               <div className="stats-icon" style={{ background: s.bg, color: s.color }}>{s.icon}</div>
@@ -233,25 +270,164 @@ export default function OfficerDashboard() {
           ))}
         </section>
 
-        {/* Document Stats Row */}
-        <section className="stats-section" style={{ marginBottom: "32px" }}>
-          {[
-            { title: "Pending Verifications", value: pendingDocs, icon: <FaHourglassHalf />, color: "#b45309", bg: "#fef3c7", path: "/officer/farmers" },
-            { title: "Verified Documents", value: verifiedDocs, icon: <FaCheckCircle />, color: "#15803d", bg: "#dcfce7", path: "/officer/farmers" },
-            { title: "Rejected Documents", value: rejectedDocs, icon: <FaTimesCircle />, color: "#dc2626", bg: "#fee2e2", path: "/officer/farmers" },
-            { title: "Total Documents", value: pendingDocs + verifiedDocs + rejectedDocs, icon: <FaFileAlt />, color: "#2563eb", bg: "#dbeafe", path: "/officer/farmers" },
-          ].map((s, i) => (
-            <div key={i} className="stats-card" onClick={() => navigate(s.path)} style={{ cursor: "pointer" }}>
-              <div className="stats-icon" style={{ background: s.bg, color: s.color }}>{s.icon}</div>
-              <div className="stats-content">
-                <h4>{s.title}</h4>
-                <h2>{loading ? "..." : s.value}</h2>
+        {/* DOCUMENT VERIFICATION INTERFACE */}
+        <section style={{ marginBottom: "36px" }}>
+          <div className="chart-card">
+            <div className="chart-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <div>
+                <h3 style={{ fontSize: 18, color: "#0f172a", margin: 0, fontWeight: 700 }}>Farmer Document Verification</h3>
+                <span style={{ fontSize: 13, color: "#64748b" }}>Review, approve, or reject identity & land documents submitted by farmers</span>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {["ALL", "PENDING", "VERIFIED", "REJECTED"].map(status => (
+                  <button
+                    key={status}
+                    onClick={() => setDocFilter(status)}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 8,
+                      border: "none",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      background: docFilter === status ? "#16a34a" : "#f1f5f9",
+                      color: docFilter === status ? "#ffffff" : "#475569",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    {status} ({documents.filter(d => status === "ALL" || d.verificationStatus === status).length})
+                  </button>
+                ))}
               </div>
             </div>
-          ))}
+
+            {filteredDocs.length > 0 ? (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                      <th style={{ padding: "12px 16px", color: "#334155" }}>Farmer Name</th>
+                      <th style={{ padding: "12px 16px", color: "#334155" }}>Document Type</th>
+                      <th style={{ padding: "12px 16px", color: "#334155" }}>File Name</th>
+                      <th style={{ padding: "12px 16px", color: "#334155" }}>Uploaded At</th>
+                      <th style={{ padding: "12px 16px", color: "#334155" }}>Status</th>
+                      <th style={{ padding: "12px 16px", color: "#334155", textAlign: "right" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredDocs.map((doc) => (
+                      <React.Fragment key={doc.documentId}>
+                        <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "14px 16px", fontWeight: 600, color: "#0f172a" }}>
+                            {doc.userName ? doc.userName : `Farmer #${doc.userId}`}
+                            {doc.userEmail && <div style={{ fontSize: 12, color: "#64748b", fontWeight: 400 }}>{doc.userEmail}</div>}
+                          </td>
+                          <td style={{ padding: "14px 16px", fontWeight: 600, color: "#16a34a" }}>
+                            <FaFileAlt style={{ marginRight: 6, verticalAlign: "middle" }} />
+                            {doc.documentType}
+                          </td>
+                          <td style={{ padding: "14px 16px", color: "#475569" }}>
+                            {doc.originalFilename}
+                          </td>
+                          <td style={{ padding: "14px 16px", color: "#64748b", fontSize: 13 }}>
+                            {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}
+                          </td>
+                          <td style={{ padding: "14px 16px" }}>
+                            <span style={{
+                              padding: "4px 10px",
+                              borderRadius: 20,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              background: doc.verificationStatus === "VERIFIED" ? "#dcfce7" : doc.verificationStatus === "REJECTED" ? "#fee2e2" : "#fef3c7",
+                              color: doc.verificationStatus === "VERIFIED" ? "#166534" : doc.verificationStatus === "REJECTED" ? "#991b1b" : "#92400e",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5
+                            }}>
+                              {doc.verificationStatus === "VERIFIED" && <FaCheckCircle />}
+                              {doc.verificationStatus === "REJECTED" && <FaTimesCircle />}
+                              {doc.verificationStatus === "PENDING" && <FaHourglassHalf />}
+                              {doc.verificationStatus}
+                            </span>
+                            {doc.rejectionRemarks && (
+                              <div style={{ fontSize: 12, color: "#dc2626", marginTop: 4 }}>
+                                Reason: {doc.rejectionRemarks}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ padding: "14px 16px", textAlign: "right" }}>
+                            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                              <button
+                                onClick={() => handleDownloadDocument(doc.documentId, doc.originalFilename)}
+                                style={{ background: "#e0f2fe", color: "#0369a1", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                                title="Download Document"
+                              >
+                                <FaDownload /> View/Download
+                              </button>
+
+                              {doc.verificationStatus !== "VERIFIED" && (
+                                <button
+                                  onClick={() => handleApproveDocument(doc.documentId)}
+                                  style={{ background: "#16a34a", color: "#ffffff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                                >
+                                  <FaCheckCircle /> Approve
+                                </button>
+                              )}
+
+                              {doc.verificationStatus !== "REJECTED" && (
+                                <button
+                                  onClick={() => setRejectingDocId(doc.documentId)}
+                                  style={{ background: "#dc2626", color: "#ffffff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                                >
+                                  <FaTimesCircle /> Reject
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Inline Rejection Remarks Prompt */}
+                        {rejectingDocId === doc.documentId && (
+                          <tr style={{ background: "#fff5f5" }}>
+                            <td colSpan={6} style={{ padding: "12px 16px" }}>
+                              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                                <input
+                                  type="text"
+                                  placeholder="Enter rejection reason / remarks..."
+                                  value={rejectionRemarks}
+                                  onChange={e => setRejectionRemarks(e.target.value)}
+                                  style={{ flex: 1, padding: "8px 12px", borderRadius: 6, border: "1px solid #fca5a5", fontSize: 13 }}
+                                />
+                                <button
+                                  onClick={() => handleRejectDocument(doc.documentId)}
+                                  style={{ background: "#dc2626", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                                >
+                                  Confirm Rejection
+                                </button>
+                                <button
+                                  onClick={() => { setRejectingDocId(null); setRejectionRemarks(""); }}
+                                  style={{ background: "#94a3b8", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", color: "#94a3b8", fontWeight: 600, padding: "40px 0" }}>
+                No farmer documents found matching filter '{docFilter}'
+              </div>
+            )}
+          </div>
         </section>
 
-        {/* Analytics Row 1: Crop Bar + Weather */}
+        {/* Analytics Row: Crop Bar + Weather */}
         <section className="analytics-row" style={{ marginBottom: "32px" }}>
 
           {/* Crop Distribution Bar Chart */}
@@ -316,7 +492,7 @@ export default function OfficerDashboard() {
           </div>
         </section>
 
-        {/* Analytics Row 2: Soil Pie + Monthly Registrations + Recent Farmers */}
+        {/* Analytics Row 2: Soil Pie & Monthly Registrations */}
         <section style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "28px", marginBottom: "32px" }}>
 
           {/* Soil Type Distribution */}
@@ -354,55 +530,27 @@ export default function OfficerDashboard() {
             )}
           </div>
 
-          {/* Monthly Registrations + Recent Farmers */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-
-            <div className="chart-card">
-              <div className="chart-header" style={{ marginBottom: 16 }}>
-                <h3>Monthly Registrations</h3>
-                <span>Farmer sign-ups per month</span>
-              </div>
-              {monthlyReg.length > 0 ? (
-                <ResponsiveContainer width="100%" height={180}>
-                  <LineChart data={monthlyReg}>
-                    <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
-                    <XAxis dataKey="month" tick={{ fill: "#334155", fontSize: 12, fontWeight: 600 }} />
-                    <YAxis tick={{ fill: "#334155", fontSize: 12, fontWeight: 600 }} />
-                    <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderRadius: "10px", color: "#fff", border: "none" }} />
-                    <Line type="monotone" dataKey="farmers" stroke="#16a34a" strokeWidth={3} dot={{ fill: "#16a34a", r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div style={{ height: 180, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontWeight: 600 }}>
-                  {loading ? "Loading..." : "No registration data yet"}
-                </div>
-              )}
+          {/* Monthly Registrations */}
+          <div className="chart-card">
+            <div className="chart-header" style={{ marginBottom: 16 }}>
+              <h3>Monthly Registrations</h3>
+              <span>Farmer sign-ups per month</span>
             </div>
-
-            <div className="recent-users-card">
-              <div className="recent-users-header" style={{ marginBottom: 16 }}>
-                <h3 style={{ color: "#0f172a" }}>Recently Registered Farmers</h3>
+            {monthlyReg.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={monthlyReg}>
+                  <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+                  <XAxis dataKey="month" tick={{ fill: "#334155", fontSize: 12, fontWeight: 600 }} />
+                  <YAxis tick={{ fill: "#334155", fontSize: 12, fontWeight: 600 }} />
+                  <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderRadius: "10px", color: "#fff", border: "none" }} />
+                  <Line type="monotone" dataKey="farmers" stroke="#16a34a" strokeWidth={3} dot={{ fill: "#16a34a", r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontWeight: 600 }}>
+                {loading ? "Loading..." : "No registration data yet"}
               </div>
-              <div className="recent-users-list">
-                {recentFarmers.length > 0 ? recentFarmers.map((f, i) => (
-                  <div key={i} className="recent-user-item" style={{ cursor: "pointer" }} onClick={() => navigate("/officer/farmers")}>
-                    <img
-                      src={`https://randomuser.me/api/portraits/${i % 2 === 0 ? "men" : "women"}/${(f.userId || i + 1) % 99}.jpg`}
-                      alt={f.name}
-                      className="recent-user-image"
-                    />
-                    <div className="recent-user-info">
-                      <h4 style={{ color: "#0f172a" }}>{f.name || "-"}</h4>
-                      <p style={{ color: "#475569" }}>{f.district || f.state || "-"}</p>
-                    </div>
-                  </div>
-                )) : (
-                  <div style={{ textAlign: "center", color: "#94a3b8", fontWeight: 600, padding: "20px 0" }}>
-                    {loading ? "Loading farmers..." : "No farmers registered yet"}
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
           </div>
         </section>
 

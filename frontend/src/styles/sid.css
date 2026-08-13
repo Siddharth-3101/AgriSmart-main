@@ -93,11 +93,11 @@
 
 .summaryCard {
 
-    display: flex;
+    display: grid;
+
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 
     align-items: center;
-
-    justify-content: space-between;
 
     gap: 25px;
 
@@ -122,8 +122,6 @@
     align-items: center;
 
     gap: 18px;
-
-    flex: 1;
 
 }
 
@@ -155,11 +153,7 @@
 
 .summaryDivider {
 
-    width: 1px;
-
-    height: 65px;
-
-    background: #ececec;
+    display: none;
 
 }
 

@@ -81,7 +81,16 @@ export default function Crops() {
   const cropsList = crops.map((c) => {
     const farm = farms.find((f) => f.farmId === c.farmId);
     const farmName = farm ? farm.farmName : "Registered Plot";
-    const farmArea = farm ? `${farm.area} Acres` : "N/A";
+    const plantedArea = (() => {
+      if (c.area && Number(c.area) > 0) return Number(c.area);
+      if (c.description) {
+        const match = c.description.match(/Area:\s*([\d.]+)/i) || c.description.match(/Cultivated Area:\s*([\d.]+)/i);
+        if (match && match[1]) return Number(match[1]);
+      }
+      return 1.0;
+    })();
+    const farmTotalArea = farm ? farm.area : 13.08;
+    const cropArea = `${plantedArea} / ${farmTotalArea} Acres`;
 
     const planted = new Date(c.plantedDate);
     const daysPassed = Math.floor((Date.now() - planted.getTime()) / (1000 * 60 * 60 * 24));
@@ -113,9 +122,10 @@ export default function Crops() {
       health: c.status === "FAILED" ? "Failed" : c.status === "HARVESTED" ? "Harvested" : "Healthy",
       progress,
       stage,
-      area: farmArea,
+      area: cropArea,
       harvest: harvestStr,
-      yield: c.yield ? `${c.yield} Tons` : "N/A"
+      yield: c.yield ? `${c.yield} Tons` : "N/A",
+      description: c.description || ""
     };
   });
 
@@ -137,18 +147,19 @@ export default function Crops() {
   const activeCount = crops.filter((c) => c.status === "ACTIVE").length;
   const harvestedCount = crops.filter((c) => c.status === "HARVESTED").length;
   const failedCount = crops.filter((c) => c.status === "FAILED").length;
-  const healthyCount = cropsList.filter((c) => c.health === "Healthy").length;
+  
+  // Ready for harvest count
+  const readyForHarvestCount = crops.filter((c) => {
+    if (c.status !== "ACTIVE") return false;
+    const daysPassed = Math.floor((Date.now() - new Date(c.plantedDate).getTime()) / (1000 * 60 * 60 * 24));
+    return (c.duration - daysPassed) <= 0;
+  }).length;
 
   const harvestLefts = crops.filter((c) => c.status === "ACTIVE").map((c) => {
     const days = c.duration - Math.floor((Date.now() - new Date(c.plantedDate).getTime()) / (1000 * 60 * 60 * 24));
     return days > 0 ? days : 0;
   });
   const nextHarvestStr = harvestLefts.length > 0 ? `${Math.min(...harvestLefts)} Days` : "N/A";
-
-  // Calculate average yield from historical harvested crops
-  const completedCrops = crops.filter((c) => c.status === "HARVESTED");
-  const totalYield = completedCrops.reduce((acc, c) => acc + (c.yield || 0), 0);
-  const avgYieldStr = completedCrops.length > 0 ? `${(totalYield / completedCrops.length).toFixed(1)} Tons` : "0.0 Tons";
 
   return (
     <>
@@ -182,10 +193,10 @@ export default function Crops() {
             </div>
             <div className="summaryDivider"></div>
             <div className="summaryItem">
-              <CircleCheck size={34} />
+              <Sprout size={34} />
               <div>
-                <span>Healthy Crops</span>
-                <h3>{healthyCount}</h3>
+                <span>Total Crops</span>
+                <h3>{crops.length}</h3>
               </div>
             </div>
             <div className="summaryDivider"></div>
@@ -198,10 +209,10 @@ export default function Crops() {
             </div>
             <div className="summaryDivider"></div>
             <div className="summaryItem">
-              <TrendingUp size={34} />
+              <CircleCheck size={34} />
               <div>
-                <span>Average Yield</span>
-                <h3>{avgYieldStr}</h3>
+                <span>Ready for Harvest</span>
+                <h3>{readyForHarvestCount}</h3>
               </div>
             </div>
           </div>
@@ -371,6 +382,12 @@ export default function Crops() {
                         <span>{crop.status === "HARVESTED" ? `Yield: ${crop.yield}` : crop.harvest}</span>
                       </div>
                     </div>
+
+                    {crop.status === "FAILED" && (
+                      <div style={{ background: "#fef2f2", color: "#991b1b", padding: "6px 10px", borderRadius: 8, fontSize: 12, border: "1px solid #fecaca", marginTop: 8 }}>
+                        <strong>Failure Reason:</strong> {crop.description ? crop.description.replace(/^Failed:\s*/, '') : "Unspecified factors"}
+                      </div>
+                    )}
 
                     <button
                       className="detailsBtn"

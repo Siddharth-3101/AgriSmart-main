@@ -17,7 +17,6 @@ import { schemeApi, documentApi } from "../services/api";
 const MENU = [
   { name: "Dashboard",     icon: <FaHome />,         path: "/officer/dashboard",   key: "dashboard" },
   { name: "Farmers",       icon: <FaUsers />,         path: "/officer/farmers",     key: "farmers"   },
-  { name: "Farms & Crops", icon: <FaTractor />,       path: "/officer/ofarms",      key: "farms"     },
   { name: "Schemes",       icon: <FaClipboardList />, path: "/officer/oschemes",    key: "schemes"   },
   { name: "Broadcast",     icon: <FaBell />,          path: "/officer/onification", key: "notif"     },
   { name: "Profile",       icon: <FaUserCircle />,    path: "/officer/oprofile",    key: "profile"   },

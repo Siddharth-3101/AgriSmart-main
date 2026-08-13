@@ -18,10 +18,14 @@ import {
   FaTrash,
   FaWarehouse,
   FaCalendarAlt,
-  FaCloudSun
+  FaCloudSun,
+  FaLock,
+  FaTimes,
+  FaCheck
 } from "react-icons/fa";
 
-import { deleteFarmAction } from "../main";
+import { deleteFarmAction, updateFarmAction } from "../main";
+import { farmApi } from "../services/api";
 
 export default function FarmDetails() {
   const navigate = useNavigate();
@@ -37,6 +41,16 @@ export default function FarmDetails() {
   const farmIdNum = Number(id);
   const [loading, setLoading] = useState(true);
   const [fetchedFarm, setFetchedFarm] = useState(null);
+
+  // Edit Farm Modal State
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editForm, setEditForm] = useState({
+    farmName: "",
+    soilType: "Clayey",
+    waterSource: "Borewell",
+    locationName: ""
+  });
 
   useEffect(() => {
     const found = farms.find((f) => f.farmId === farmIdNum);
@@ -68,6 +82,90 @@ export default function FarmDetails() {
   }, [id, farms, token, demoMode, farmIdNum]);
 
   const dbFarm = fetchedFarm || farms.find((f) => f.farmId === farmIdNum);
+
+  // Open Edit Modal
+  const openEditModal = () => {
+    if (!dbFarm) return;
+    const locParts = (dbFarm.location || "").split(" | ");
+    setEditForm({
+      farmName: dbFarm.farmName || "",
+      soilType: dbFarm.soilType || "Clayey",
+      waterSource: dbFarm.waterSource || "Borewell",
+      locationName: locParts[0] || ""
+    });
+    setEditModalOpen(true);
+  };
+
+  // Submit Farm Edit to API
+  const handleUpdateFarm = async (e) => {
+    e.preventDefault();
+    if (!editForm.farmName.trim()) {
+      toast.error("Farm name is required");
+      return;
+    }
+    setEditLoading(true);
+
+    // Preserve polygon coordinates if present in location string
+    let fullLocation = editForm.locationName;
+    if (dbFarm.location && dbFarm.location.includes(" | ")) {
+      const coordsPart = dbFarm.location.split(" | ").slice(1).join(" | ");
+      fullLocation = `${editForm.locationName} | ${coordsPart}`;
+    }
+
+    const payload = {
+      farmName: editForm.farmName,
+      soilType: editForm.soilType,
+      waterSource: editForm.waterSource,
+      location: fullLocation,
+      area: dbFarm.area,
+      latitude: dbFarm.latitude,
+      longitude: dbFarm.longitude
+    };
+
+    try {
+      if (!demoMode && token) {
+        const res = await fetch(`http://localhost:8082/api/farms/${dbFarm.farmId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const updatedData = await res.json();
+          const merged = { ...dbFarm, ...updatedData, location: fullLocation };
+          dispatch(updateFarmAction(merged));
+          setFetchedFarm(merged);
+          toast.success("Farm specifications updated successfully in database!");
+          setEditModalOpen(false);
+          setEditLoading(false);
+          return;
+        } else {
+          const err = await res.json().catch(() => ({}));
+          toast.error(err.message || "Failed to update farm details.");
+          setEditLoading(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Farm API offline, updating locally", err);
+    }
+
+    const updatedLocal = {
+      ...dbFarm,
+      farmName: editForm.farmName,
+      soilType: editForm.soilType,
+      waterSource: editForm.waterSource,
+      location: fullLocation
+    };
+    dispatch(updateFarmAction(updatedLocal));
+    setFetchedFarm(updatedLocal);
+    toast.success("Farm specifications updated!");
+    setEditModalOpen(false);
+    setEditLoading(false);
+  };
 
   // Derive coordinates for LeafletViewer
   const mappedFarmForViewer = useMemo(() => {
@@ -199,14 +297,35 @@ export default function FarmDetails() {
           </button>
 
           {/* HEADER */}
-          <div className="detailsHeader">
+          <div className="detailsHeader" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <h1>{dbFarm.farmName}</h1>
+              <h1 style={{ textTransform: "capitalize" }}>{dbFarm.farmName}</h1>
               <p>
                 <FaMapMarkerAlt /> {dbFarm.location ? dbFarm.location.split(" | ")[0] : ""}
               </p>
             </div>
-            <span className="farmStatus">🟢 Healthy</span>
+            
+            {/* Edit Farm Button replacing Healthy Badge */}
+            <button
+              onClick={openEditModal}
+              style={{
+                background: "#dcfce7",
+                color: "#15803d",
+                border: "1.5px solid #86efac",
+                padding: "8px 18px",
+                borderRadius: "20px",
+                fontWeight: "700",
+                fontSize: "13px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                boxShadow: "0 2px 8px rgba(22, 163, 74, 0.15)",
+                transition: "all 0.2s"
+              }}
+            >
+              <FaEdit /> Edit Farm Specifications
+            </button>
           </div>
 
           {/* STATS */}
@@ -274,7 +393,26 @@ export default function FarmDetails() {
 
               <div className="actionsSection" style={{ marginTop: "24px" }}>
                 <h2>Farm Management Actions</h2>
-                <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                <div style={{ display: "flex", gap: "12px", marginTop: "12px", flexWrap: "wrap" }}>
+                  <button
+                    onClick={openEditModal}
+                    style={{
+                      background: "#f0fdf4",
+                      color: "#16a34a",
+                      border: "1px solid #bbf7d0",
+                      padding: "10px 16px",
+                      borderRadius: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: "600"
+                    }}
+                  >
+                    <FaEdit /> Edit Farm Details
+                  </button>
+
                   <button
                     className="deleteBtn"
                     style={{
@@ -300,6 +438,213 @@ export default function FarmDetails() {
           </div>
         </div>
       </div>
+
+      {/* EDIT FARM MODAL */}
+      {editModalOpen && (
+        <>
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(15, 23, 42, 0.65)",
+              backdropFilter: "blur(4px)",
+              zIndex: 1000
+            }}
+            onClick={() => !editLoading && setEditModalOpen(false)}
+          />
+
+          <div
+            style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "min(520px, 92vw)",
+              background: "#ffffff",
+              borderRadius: "20px",
+              padding: "28px",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+              zIndex: 1001,
+              maxHeight: "90vh",
+              overflowY: "auto"
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", borderBottom: "1px solid #e2e8f0", paddingBottom: "14px" }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "800", color: "#0f172a" }}>
+                  Edit Farm Specifications
+                </h2>
+                <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748b" }}>
+                  Update plot specifications stored in database (Plot #{dbFarm.farmId})
+                </p>
+              </div>
+              <button
+                onClick={() => setEditModalOpen(false)}
+                disabled={editLoading}
+                style={{ background: "transparent", border: "none", fontSize: "18px", color: "#64748b", cursor: "pointer" }}
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateFarm} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {/* Farm Name */}
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#334155", marginBottom: "6px" }}>
+                  Farm Plot Name <span style={{ color: "#dc2626" }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.farmName}
+                  onChange={(e) => setEditForm({ ...editForm, farmName: e.target.value })}
+                  placeholder="e.g. Pollachi Farm"
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: "10px",
+                    border: "1.5px solid #cbd5e1",
+                    fontSize: "14px",
+                    outline: "none",
+                    boxSizing: "border-box"
+                  }}
+                />
+              </div>
+
+              {/* Soil Type */}
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#334155", marginBottom: "6px" }}>
+                  Soil Type
+                </label>
+                <select
+                  value={editForm.soilType}
+                  onChange={(e) => setEditForm({ ...editForm, soilType: e.target.value })}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: "10px",
+                    border: "1.5px solid #cbd5e1",
+                    fontSize: "14px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    background: "#fff"
+                  }}
+                >
+                  <option value="Clayey">Clayey Soil</option>
+                  <option value="Black Soil">Black Soil</option>
+                  <option value="Red Soil">Red Soil</option>
+                  <option value="Sandy Soil">Sandy Soil</option>
+                  <option value="Loamy Soil">Loamy Soil</option>
+                  <option value="Alluvial Soil">Alluvial Soil</option>
+                </select>
+              </div>
+
+              {/* Water Source */}
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#334155", marginBottom: "6px" }}>
+                  Water Source / Irrigation Method
+                </label>
+                <select
+                  value={editForm.waterSource}
+                  onChange={(e) => setEditForm({ ...editForm, waterSource: e.target.value })}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: "10px",
+                    border: "1.5px solid #cbd5e1",
+                    fontSize: "14px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    background: "#fff"
+                  }}
+                >
+                  <option value="Borewell">Borewell</option>
+                  <option value="Canal Irrigation">Canal Irrigation</option>
+                  <option value="Rainfed">Rainfed</option>
+                  <option value="Drip Irrigation">Drip Irrigation</option>
+                  <option value="River Water">River Water</option>
+                  <option value="Open Well">Open Well</option>
+                </select>
+              </div>
+
+              {/* Location Description */}
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: "#334155", marginBottom: "6px" }}>
+                  Location / Village Name
+                </label>
+                <input
+                  type="text"
+                  value={editForm.locationName}
+                  onChange={(e) => setEditForm({ ...editForm, locationName: e.target.value })}
+                  placeholder="e.g. Pollachi, Coimbatore"
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: "10px",
+                    border: "1.5px solid #cbd5e1",
+                    fontSize: "14px",
+                    outline: "none",
+                    boxSizing: "border-box"
+                  }}
+                />
+              </div>
+
+              {/* Read-Only Info Notice */}
+              <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "12px 14px", border: "1px solid #e2e8f0" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "700", color: "#475569" }}>
+                  <FaLock style={{ color: "#64748b" }} /> Protected GIS Properties (Read-Only)
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#64748b", marginTop: "6px" }}>
+                  <span>Land Area:</span>
+                  <strong>{dbFarm.area} Acres (GIS Boundary Fixed)</strong>
+                </div>
+              </div>
+
+              {/* Modal Buttons */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "10px" }}>
+                <button
+                  type="button"
+                  disabled={editLoading}
+                  onClick={() => setEditModalOpen(false)}
+                  style={{
+                    padding: "10px 18px",
+                    borderRadius: "10px",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#475569",
+                    fontWeight: "700",
+                    fontSize: "13px",
+                    cursor: "pointer"
+                  }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  style={{
+                    padding: "10px 22px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: "#16a34a",
+                    color: "#ffffff",
+                    fontWeight: "700",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
+                >
+                  {editLoading ? "Saving..." : <><FaCheck /> Save Specifications</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
+      )}
 
       <Footer />
     </>

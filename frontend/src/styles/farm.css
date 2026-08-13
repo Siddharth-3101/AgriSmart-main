@@ -137,6 +137,46 @@ padding-bottom: 0;
 
 }
 
+.farmBackProfileBtn{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:10px;
+
+    border:none;
+
+    background:#1b5e20;
+
+    color:#fff;
+
+    padding:18px 34px;
+
+    border-radius:50px;
+
+    font-size:17px;
+
+    font-weight:600;
+
+    cursor:pointer;
+
+    transition:.3s;
+
+    box-shadow: 0 4px 15px rgba(27, 94, 32, 0.25);
+
+}
+
+.farmBackProfileBtn:hover{
+
+    background:#2e7d32;
+
+    transform:translateY(-3px);
+
+    box-shadow: 0 6px 20px rgba(27, 94, 32, 0.35);
+
+}
+
 /* ===================================================
    CONTENT
 =================================================== */
@@ -161,7 +201,7 @@ padding-bottom: 0;
 
     display:grid;
 
-    grid-template-columns:repeat(4,1fr);
+    grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
 
     gap:25px;
 

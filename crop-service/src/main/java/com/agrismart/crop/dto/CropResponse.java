@@ -14,11 +14,12 @@ public class CropResponse {
     private LocalDate expectedHarvestDate;
     private Long farmId;
     private Double yield;
+    private Double area;
 
     public CropResponse() {
     }
 
-    public CropResponse(Long cropId, String cropName, Integer duration, String description, CropStatus status, String season, LocalDate plantedDate, LocalDate expectedHarvestDate, Long farmId, Double yield) {
+    public CropResponse(Long cropId, String cropName, Integer duration, String description, CropStatus status, String season, LocalDate plantedDate, LocalDate expectedHarvestDate, Long farmId, Double yield, Double area) {
         this.cropId = cropId;
         this.cropName = cropName;
         this.duration = duration;
@@ -29,6 +30,7 @@ public class CropResponse {
         this.expectedHarvestDate = expectedHarvestDate;
         this.farmId = farmId;
         this.yield = yield;
+        this.area = area;
     }
 
     public Long getCropId() {
@@ -111,6 +113,14 @@ public class CropResponse {
         this.yield = yield;
     }
 
+    public Double getArea() {
+        return area;
+    }
+
+    public void setArea(Double area) {
+        this.area = area;
+    }
+
     public static CropResponseBuilder builder() {
         return new CropResponseBuilder();
     }
@@ -126,6 +136,7 @@ public class CropResponse {
         private LocalDate expectedHarvestDate;
         private Long farmId;
         private Double yield;
+        private Double area;
 
         public CropResponseBuilder cropId(Long cropId) {
             this.cropId = cropId;
@@ -177,9 +188,13 @@ public class CropResponse {
             return this;
         }
 
+        public CropResponseBuilder area(Double area) {
+            this.area = area;
+            return this;
+        }
+
         public CropResponse build() {
-            return new CropResponse(cropId, cropName, duration, description, status, season, plantedDate, expectedHarvestDate, farmId, yield);
+            return new CropResponse(cropId, cropName, duration, description, status, season, plantedDate, expectedHarvestDate, farmId, yield, area);
         }
     }
 }
-

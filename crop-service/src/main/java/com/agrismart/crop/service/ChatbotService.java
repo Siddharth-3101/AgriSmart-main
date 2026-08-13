@@ -67,7 +67,7 @@ public class ChatbotService {
                 contentsMap.put("contents", Collections.singletonList(partsMap));
 
                 Map<String, Object> responseData = restClient.post()
-                        .uri("/v1beta/models/gemini-2.5-flash:generateContent?key=" + geminiApiKey)
+                        .uri("/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiApiKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(contentsMap)
                         .retrieve()
@@ -188,7 +188,7 @@ public class ChatbotService {
             } else if (msgLower.contains("yield") || msgLower.contains("harvest") || msgLower.contains("optimize") || msgLower.contains("ਝਾੜ") || msgLower.contains("ਫਸਲ")) {
                 reply = "ਝਾੜ ਵਧਾਉਣ ਲਈ, ਬਿਮਾਰੀ-ਰੋਧਕ ਬੀਜਾਂ (ਜਿਵੇਂ ਕਣਕ ਲਈ HD-2967, ਝੋਨੇ ਲਈ CR-Dhan) ਦੀ ਚੋਣ ਕਰੋ ਅਤੇ ਫਸਲੀ ਚੱਕਰ ਵਿੱਚ ਜੰਤਰ ਜਾਂ ਦਾਲਾਂ ਦੀ ਵਰਤੋਂ ਕਰੋ ਤਾਂ ਜੋ ਮਿੱਟੀ ਦੀ ਸਿਹਤ ਬਣੀ ਰਹੇ।";
             } else if (msgLower.contains("disease") || msgLower.contains("pest") || msgLower.contains("insect") || msgLower.contains("ਬਿਮਾਰੀ") || msgLower.contains("ਕੀੜੇ")) {
-                reply = "ਆਮ ਬਿਮਾਰੀਆਂ ਵਿੱਚ ਝੋਨੇ ਦਾ ਬਲਾਸਟ (Tricyclazole ਨਾਲ ਇਲਾਜ) ਅਤੇ ਕਣਕ ਦੀ ਕੁੰਗੀ (Propiconazole ਨਾਲ ਇਲਾਜ) ਸ਼ਾਮਲ ਹਨ। ਖੇਤ ਵਿੱਚ ਹਵਾ ਅਤੇ ਰੋਸ਼नी ਦਾ ਢੁਕਵਾਂ ਪ੍ਰਬੰਧ ਰੱਖੋ।";
+                reply = "ਆਮ ਬਿਮਾਰੀਆਂ ਵਿੱਚ ਝੋਨੇ ਦਾ ਬਲਾਸਟ (Tricyclazole ਨਾਲ ਇਲਾਜ) ਅਤੇ ਕਣਕ ਦੀ ਕੁੰਗੀ (Propiconazole ਨਾਲ ਇਲਾਜ) ਸ਼ਾਮਲ ਹਨ। ਖੇਤ ਵਿੱਚ ਹਵਾ ਅਤੇ ਰੋਸ਼ਨੀ ਦਾ ਢੁਕਵਾਂ ਪ੍ਰਬੰਧ ਰੱਖੋ।";
             } else {
                 reply = "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ! ਮੈਂ ਤੁਹਾਡਾ ਐਗਰੀਸਮਾਰਟ ਏਆਈ ਸਹਾਇਕ ਹਾਂ। ਮੈਨੂੰ ਫਸਲ ਦੀ ਚੋਣ, ਖਾਦਾਂ ਦੀ ਵਰਤੋਂ, ਮੌਸਮ ਦੀ ਚੇਤਾਵਨੀ ਜਾਂ ਝਾੜ ਵਧਾਉਣ ਬਾਰੇ ਪੁੱਛੋ।";
             }

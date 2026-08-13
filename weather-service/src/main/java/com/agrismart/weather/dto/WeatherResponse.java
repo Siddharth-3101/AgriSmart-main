@@ -46,6 +46,13 @@ public class WeatherResponse {
         this.rainfall = rainfall;
     }
 
+    public String getRainfallFormatted() {
+        if (rainfall == null || rainfall == 0.0) {
+            return "No rainfall";
+        }
+        return String.format("%.1f mm", rainfall);
+    }
+
     public String getDescription() {
         return description;
     }

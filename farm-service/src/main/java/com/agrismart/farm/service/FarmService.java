@@ -10,14 +10,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
 
 @Service
 public class FarmService {
 
     private final FarmRepository farmRepository;
+
     public FarmService(FarmRepository farmRepository) {
-    	this.farmRepository=farmRepository;
+        this.farmRepository = farmRepository;
     }
+
     @Transactional
     public FarmResponse addFarm(FarmRequest request, Long userId) {
         Farm farm = Farm.builder()
@@ -86,11 +89,32 @@ public class FarmService {
         Page<Farm> farmPage;
         if ("ROLE_FARMER".equals(userRole)) {
             farmPage = farmRepository.findByUserId(userId, pageable);
+        } else if ("ROLE_OFFICER".equals(userRole)) {
+            List<Long> farmerIds = getFarmerIdsInOfficerRegion(userId);
+            if (farmerIds.isEmpty()) {
+                farmPage = Page.empty(pageable);
+            } else {
+                farmPage = farmRepository.findByUserIdIn(farmerIds, pageable);
+            }
         } else {
-            // ADMIN or OFFICER can view all farms
+            // ADMIN can view all farms
             farmPage = farmRepository.findAll(pageable);
         }
         return farmPage.map(this::mapToFarmResponse);
+    }
+
+    private List<Long> getFarmerIdsInOfficerRegion(Long officerUserId) {
+        try {
+            if (officerUserId == null) return java.util.Collections.emptyList();
+            List<String> officerDistList = farmRepository.findOfficerDistrict(officerUserId);
+            if (officerDistList.isEmpty() || officerDistList.get(0) == null || officerDistList.get(0).trim().isEmpty()) {
+                return java.util.Collections.emptyList();
+            }
+            String dist = officerDistList.get(0).trim();
+            return farmRepository.findFarmerIdsByRegion(dist);
+        } catch (Exception e) {
+            return java.util.Collections.emptyList();
+        }
     }
 
     private FarmResponse mapToFarmResponse(Farm farm) {

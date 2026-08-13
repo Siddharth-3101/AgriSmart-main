@@ -39,10 +39,12 @@ public class Crop {
 
     private Double yield; // yield in kg/tonnes
 
+    private Double area; // planted crop area in acres
+
     public Crop() {
     }
 
-    public Crop(Long cropId, String cropName, Integer duration, String description, CropStatus status, String season, LocalDate plantedDate, LocalDate expectedHarvestDate, Long farmId, Double yield) {
+    public Crop(Long cropId, String cropName, Integer duration, String description, CropStatus status, String season, LocalDate plantedDate, LocalDate expectedHarvestDate, Long farmId, Double yield, Double area) {
         this.cropId = cropId;
         this.cropName = cropName;
         this.duration = duration;
@@ -53,6 +55,7 @@ public class Crop {
         this.expectedHarvestDate = expectedHarvestDate;
         this.farmId = farmId;
         this.yield = yield;
+        this.area = area;
     }
 
     public Long getCropId() {
@@ -135,6 +138,14 @@ public class Crop {
         this.yield = yield;
     }
 
+    public Double getArea() {
+        return area;
+    }
+
+    public void setArea(Double area) {
+        this.area = area;
+    }
+
     public static CropBuilder builder() {
         return new CropBuilder();
     }
@@ -150,6 +161,7 @@ public class Crop {
         private LocalDate expectedHarvestDate;
         private Long farmId;
         private Double yield;
+        private Double area;
 
         public CropBuilder cropId(Long cropId) {
             this.cropId = cropId;
@@ -201,9 +213,13 @@ public class Crop {
             return this;
         }
 
+        public CropBuilder area(Double area) {
+            this.area = area;
+            return this;
+        }
+
         public Crop build() {
-            return new Crop(cropId, cropName, duration, description, status, season, plantedDate, expectedHarvestDate, farmId, yield);
+            return new Crop(cropId, cropName, duration, description, status, season, plantedDate, expectedHarvestDate, farmId, yield, area);
         }
     }
 }
-

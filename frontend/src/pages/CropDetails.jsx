@@ -8,6 +8,8 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import FloatingAI from "../components/FloatingAI";
 import LeafletViewer from "../components/LeafletViewer";
+import { aiApi } from "../services/api";
+import * as turf from "@turf/turf";
 
 import {
   ArrowLeft,
@@ -37,13 +39,33 @@ export default function CropDetails() {
   const crops = useSelector((state) => state.agri.crops) || [];
   const farms = useSelector((state) => state.agri.farms) || [];
   const weather = useSelector((state) => state.agri.weather);
+  const user = useSelector((state) => state.agri.user);
 
   const [harvestYield, setHarvestYield] = useState("");
   const [showHarvestModal, setShowHarvestModal] = useState(false);
 
+  // Mark crop as failed modal state
+  const [showFailModal, setShowFailModal] = useState(false);
+  const [failReasonSelect, setFailReasonSelect] = useState("Pest Infestation / Bollworm");
+  const [failReasonOther, setFailReasonOther] = useState("");
+
   const cropIdNum = Number(id);
   const [loading, setLoading] = useState(true);
   const [fetchedCrop, setFetchedCrop] = useState(null);
+  const [aiAdvisory, setAiAdvisory] = useState(null);
+  const [showFertilizerTech, setShowFertilizerTech] = useState(false);
+  const [showIrrigationTech, setShowIrrigationTech] = useState(false);
+
+  useEffect(() => {
+    if (fetchedCrop || cropIdNum) {
+      const c = fetchedCrop || crops.find((item) => item.cropId === cropIdNum);
+      if (c && token && !demoMode) {
+        aiApi.getRecommendation(token, c.farmId || 1, c.cropId)
+          .then((res) => { if (res) setAiAdvisory(res); })
+          .catch((err) => console.warn("AI Advisory service offline", err));
+      }
+    }
+  }, [fetchedCrop, cropIdNum, token, demoMode, crops]);
 
   useEffect(() => {
     const found = crops.find((c) => c.cropId === cropIdNum);
@@ -283,9 +305,30 @@ export default function CropDetails() {
 
   const isFarmer = crop.status === "ACTIVE";
 
+  // Calculate exact crop planted area from API area field, description, or turf polygon
+  const cropPlantedArea = (() => {
+    if (crop && crop.area && Number(crop.area) > 0) return Number(crop.area);
+    if (crop && crop.description) {
+      const match = crop.description.match(/Area:\s*([\d.]+)/i) || crop.description.match(/Cultivated Area:\s*([\d.]+)/i);
+      if (match && match[1]) return Number(match[1]);
+    }
+    if (cropCoordinates && cropCoordinates.length >= 3) {
+      try {
+        const poly = turf.polygon([cropCoordinates.map(p => [p[1], p[0]]).concat([[cropCoordinates[0][1], cropCoordinates[0][0]]])]);
+        const sqm = turf.area(poly);
+        const acres = sqm * 0.000247105;
+        if (acres > 0) return Number(acres.toFixed(2));
+      } catch (e) {}
+    }
+    return 1.0;
+  })();
+
+  const totalFarmArea = farm && farm.area ? Number(farm.area) : 13.08;
+  const plantedAreaDisplay = `${cropPlantedArea} / ${totalFarmArea} Acres`;
+
   const calculatedYield = getPredictiveYield(
     crop.cropName,
-    farm ? farm.area : 1.0,
+    cropPlantedArea,
     farm ? farm.soilType : "Black Soil",
     farm ? farm.waterSource : "Borewell",
     weather
@@ -303,6 +346,7 @@ export default function CropDetails() {
     village: farm.location ? farm.location.split(" | ")[0] : "Coimbatore",
     state: "Tamil Nadu",
     crop: crop.cropName,
+    cropPlantedArea: `${cropPlantedArea} Acres`,
     cropCoordinates: cropCoordinates,
     coordinates: (() => {
       if (farm.location && farm.location.includes(" | ")) {
@@ -402,13 +446,15 @@ export default function CropDetails() {
     navigate("/crops");
   };
 
-  const handleFailCrop = async () => {
-    if (!window.confirm("Are you sure you want to mark this crop as FAILED? This will record the crop log as failed in your history.")) return;
+  const handleFailCropSubmit = async (e) => {
+    e.preventDefault();
+    const finalReason = failReasonSelect === "Other Reasons" ? (failReasonOther || "Unspecified cause") : failReasonSelect;
+    const descText = `Failed: ${finalReason}`;
 
     const payload = {
       cropName: crop.cropName,
       duration: crop.duration,
-      description: "Crop growth failed due to environment factors.",
+      description: descText,
       status: "FAILED",
       season: crop.season,
       plantedDate: crop.plantedDate,
@@ -431,7 +477,8 @@ export default function CropDetails() {
           const updated = await res.json();
           updateLocalDemoCrops(updated);
           dispatch(updateCropAction(updated));
-          toast.success("Crop status updated to FAILED in database.");
+          toast.success(`Crop status updated to FAILED (${finalReason})`);
+          setShowFailModal(false);
           navigate("/crops");
           return;
         }
@@ -440,10 +487,11 @@ export default function CropDetails() {
       console.warn("Crop service offline, failing locally.", err);
     }
 
-    const updatedCropObj = { ...crop, status: "FAILED", yield: 0.0, description: "Crop growth failed due to environment factors." };
+    const updatedCropObj = { ...crop, status: "FAILED", yield: 0.0, description: descText };
     updateLocalDemoCrops(updatedCropObj);
     dispatch(updateCropAction(updatedCropObj));
-    toast.success("Crop marked failed locally (Demo Mode)!");
+    toast.success(`Crop marked failed locally (${finalReason})!`);
+    setShowFailModal(false);
     navigate("/crops");
   };
 
@@ -486,12 +534,24 @@ export default function CropDetails() {
         </div>
         <br />
 
-        {/* Summary */}
-        <div className="detailsStats">
+        {/* Failed Crop Reason Banner */}
+        {crop.status === "FAILED" && (
+          <div style={{ background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: 14, padding: "16px 20px", marginBottom: 20, color: "#991b1b" }}>
+            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}>
+              <XCircle size={18} /> Crop Marked As Failed
+            </h4>
+            <p style={{ margin: "6px 0 0", fontSize: 14 }}>
+              <strong>Recorded Failure Reason:</strong> {crop.description ? crop.description.replace(/^Failed:\s*/, '') : "Environmental / Unspecified factors"}
+            </p>
+          </div>
+        )}
+
+        {/* Summary Metrics */}
+        <div className="detailsStats" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
           <div className="detailsCard">
-            <Leaf />
-            <h3>Health Status</h3>
-            <h2>{crop.status === "FAILED" ? "0%" : "92%"}</h2>
+            <Sprout />
+            <h3>Planted Area</h3>
+            <h2>{plantedAreaDisplay}</h2>
           </div>
 
           <div className="detailsCard">
@@ -504,12 +564,6 @@ export default function CropDetails() {
             <Calendar />
             <h3>Harvest Countdown</h3>
             <h2>{crop.status === "ACTIVE" ? harvestStr : "N/A"}</h2>
-          </div>
-
-          <div className="detailsCard">
-            <Droplets />
-            <h3>Soil Moisture</h3>
-            <h2>{crop.status === "FAILED" ? "20%" : "68%"}</h2>
           </div>
         </div>
 
@@ -571,20 +625,92 @@ export default function CropDetails() {
 
           {/* Right */}
           <div>
-            {/* AI */}
-            <div className="glassCard">
-              <h2>
-                <Brain size={22} />
+            {/* AI Recommendations */}
+            <div className="glassCard" style={{ background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 16, padding: 20 }}>
+              <h2 style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 18, color: "#1e293b", margin: "0 0 16px" }}>
+                <Brain size={22} style={{ color: "#16a34a" }} />
                 AI Crop Advice & Recommendations
               </h2>
-              <div className="recommendationBox">
-                <strong>NPK Recommendations:</strong>
-                <p style={{ margin: "5px 0 15px 0", fontSize: "13px", lineHeight: "1.4" }}>{npkAdvice}</p>
-                <strong>Irrigation Advice:</strong>
-                <p style={{ margin: "5px 0 0 0", fontSize: "13px", lineHeight: "1.4" }}>
-                  {irrigationData.status} {irrigationData.advice}
-                </p>
+
+              {/* FERTILIZER SECTION */}
+              <div style={{ background: "#f0fdf4", border: "1.5px solid #bbf7d0", borderRadius: 14, padding: 16, marginBottom: 16 }}>
+                <h4 style={{ color: "#15803d", fontSize: 15, fontWeight: 800, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 6 }}>
+                  🌱 Fertilizer Recommendation
+                </h4>
+
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, color: "#1e293b", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <li><strong>What fertilizer to apply:</strong> Urea & DAP</li>
+                  <li><strong>Quantity:</strong> {(((120 - (user?.nitrogen || 60)) / 0.46) / 50).toFixed(1)} bags Urea, {(((60 - (user?.phosphorus || 40)) / 0.46) / 50).toFixed(1)} bags DAP per hectare</li>
+                  <li><strong>Target crop:</strong> {crop.cropName}</li>
+                  <li><strong>When to apply:</strong> Top-dress Urea during active tillering stage (within 5 days). Apply DAP at sowing.</li>
+                  <li><strong>Simple reason:</strong> Boosts leaf growth and green canopy establishment in {farm ? farm.soilType : "Loamy Soil"}.</li>
+                </ul>
+
+                {aiAdvisory && aiAdvisory.fertilizerRecommendation && (
+                  <div style={{ marginTop: 10, fontSize: 13, color: "#15803d", fontWeight: 700, background: "#ffffff", padding: "8px 12px", borderRadius: 8, border: "1px solid #86efac" }}>
+                    CatBoost AI Model Output: {aiAdvisory.fertilizerRecommendation}
+                  </div>
+                )}
+
+                <div style={{ textAlign: "right", marginTop: 10 }}>
+                  <button
+                    onClick={() => setShowFertilizerTech(!showFertilizerTech)}
+                    style={{ background: "none", border: "none", color: "#16a34a", fontSize: 12, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}
+                  >
+                    {showFertilizerTech ? "▲ Hide Technical Details" : "▼ View Technical NPK Calculations"}
+                  </button>
+                  {showFertilizerTech && (
+                    <div style={{ marginTop: 8, padding: 10, background: "#ffffff", borderRadius: 8, fontSize: 12, color: "#475569", border: "1px solid #d1fae5", textAlign: "left" }}>
+                      • Soil Card Readings: N={user?.nitrogen || 60} kg/ha, P={user?.phosphorus || 40} kg/ha, K={user?.potassium || 50} kg/ha (pH {user?.soilPh || 6.5})<br />
+                      • Crop Standard Target ({crop.cropName}): NPK 120:60:60 kg/ha<br />
+                      • Computed Deficit: N={Math.max(0, 120 - (user?.nitrogen || 60))} kg, P={Math.max(0, 60 - (user?.phosphorus || 40))} kg, K={Math.max(0, 60 - (user?.potassium || 50))} kg
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* IRRIGATION SECTION */}
+              <div style={{ background: "#f0f9ff", border: "1.5px solid #bae6fd", borderRadius: 14, padding: 16 }}>
+                <h4 style={{ color: "#0369a1", fontSize: 15, fontWeight: 800, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 6 }}>
+                  💧 Irrigation Schedule
+                </h4>
+
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, color: "#1e293b", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <li><strong>Recommended date/time:</strong> Tomorrow at 07:00 AM</li>
+                  <li><strong>Amount/depth:</strong> 2.5 cm depth via Drip / Furrow Irrigation</li>
+                  <li><strong>Current soil moisture:</strong> 68% (Adequate Root Zone Capacity)</li>
+                  <li><strong>Rainfall & weather:</strong> {weather ? `${Math.round(weather.temperature)}°C · Humidity ${weather.humidity}% · Rain ${weather.rainfall || 0}mm` : "0 mm Rain · Normal"}</li>
+                  <li><strong>Action instruction:</strong> Water in early morning hours to minimize surface evapotranspiration.</li>
+                </ul>
+
+                {aiAdvisory && aiAdvisory.irrigationRecommendation && (
+                  <div style={{ marginTop: 10, fontSize: 13, color: "#0369a1", fontWeight: 700, background: "#ffffff", padding: "8px 12px", borderRadius: 8, border: "1px solid #7dd3fc" }}>
+                    CatBoost AI Model Output: {aiAdvisory.irrigationRecommendation}
+                  </div>
+                )}
+
+                <div style={{ textAlign: "right", marginTop: 10 }}>
+                  <button
+                    onClick={() => setShowIrrigationTech(!showIrrigationTech)}
+                    style={{ background: "none", border: "none", color: "#0284c7", fontSize: 12, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}
+                  >
+                    {showIrrigationTech ? "▲ Hide Technical Details" : "▼ View Hydrological & Evapotranspiration Details"}
+                  </button>
+                  {showIrrigationTech && (
+                    <div style={{ marginTop: 8, padding: 10, background: "#ffffff", borderRadius: 8, fontSize: 12, color: "#475569", border: "1px solid #e0f2fe", textAlign: "left" }}>
+                      • Soil Retention Structure: {farm && farm.soilType ? farm.soilType : "Loamy Soil"}<br />
+                      • Base Irrigation Interval: 7 Days (Adjusted ET Factor: 1.15)<br />
+                      • Evapotranspiration Rate: High temperature ({weather ? Math.round(weather.temperature) : 28}°C) accelerates water loss.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {aiAdvisory && aiAdvisory.cropAdvice && (
+                <div style={{ marginTop: 12, padding: 10, background: "#f8fafc", borderRadius: 8, fontSize: 12, color: "#64748b", fontStyle: "italic" }}>
+                  💡 {aiAdvisory.cropAdvice}
+                </div>
+              )}
             </div>
 
             {/* Timeline */}
@@ -633,7 +759,7 @@ export default function CropDetails() {
                   <button
                     className="cancelBtn"
                     style={{ padding: "10px 20px", display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", borderRadius: "8px", background: "#fff", border: "1px solid #dc2626", color: "#dc2626" }}
-                    onClick={handleFailCrop}
+                    onClick={() => setShowFailModal(true)}
                   >
                     <XCircle size={18} />
                     Mark Failed
@@ -643,6 +769,87 @@ export default function CropDetails() {
             )}
           </div>
         </div>
+
+        {/* Mark Crop Failed Modal */}
+        {showFailModal && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "rgba(15, 23, 42, 0.6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9999,
+              padding: 16
+            }}
+          >
+            <div style={{ background: "#ffffff", padding: "28px", borderRadius: "16px", width: "450px", maxWidth: "90%", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)" }}>
+              <h3 style={{ margin: "0 0 10px 0", color: "#991b1b", fontSize: 18, display: "flex", alignItems: "center", gap: 6 }}>
+                <XCircle size={20} /> Mark Crop Cultivation As Failed
+              </h3>
+              <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 18px 0", lineHeight: 1.4 }}>
+                Please specify the primary reason for crop loss for <strong>{crop.cropName}</strong>. This data will be logged permanently in your historical failed crop records.
+              </p>
+              <form onSubmit={handleFailCropSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+                    Select Failure Reason *
+                  </label>
+                  <select
+                    value={failReasonSelect}
+                    onChange={(e) => setFailReasonSelect(e.target.value)}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1.5px solid #cbdcd0", fontSize: 14, background: "#fff" }}
+                  >
+                    <option value="Pest Infestation / Bollworm Attack">Pest Infestation / Bollworm Attack</option>
+                    <option value="Drought / Severe Water Deficit">Drought / Severe Water Deficit</option>
+                    <option value="Excess Rain / Waterlogging & Flood">Excess Rain / Waterlogging & Flood</option>
+                    <option value="Fungal / Bacterial Crop Disease">Fungal / Bacterial Crop Disease</option>
+                    <option value="Soil Salinity / Severe Nutrient Deficiency">Soil Salinity / Severe Nutrient Deficiency</option>
+                    <option value="Unexpected Weather / Frost / Hailstorm">Unexpected Weather / Frost / Hailstorm</option>
+                    <option value="Other Reasons">Other Reasons (Specify Below)</option>
+                  </select>
+                </div>
+
+                {failReasonSelect === "Other Reasons" && (
+                  <div>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+                      Specify Failure Reason *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Describe the cause of crop failure..."
+                      value={failReasonOther}
+                      onChange={(e) => setFailReasonOther(e.target.value)}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1.5px solid #cbdcd0", fontSize: 14 }}
+                    />
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: 10 }}>
+                  <button
+                    type="button"
+                    className="cancelBtn"
+                    style={{ padding: "10px 16px", borderRadius: 8 }}
+                    onClick={() => setShowFailModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: "#dc2626", color: "#fff", fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Record Crop Failure
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Harvest Yield Modal */}
         {showHarvestModal && (

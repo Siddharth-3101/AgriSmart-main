@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { ToastContainer } from "react-toastify";
 import "./App.css";
+import "./styles/admin.css";
 
 // Farmer Pages
 import Home from "./pages/Home";
@@ -27,8 +28,14 @@ import Register from "./pages/Register";
 import OfficerDashboard from "./pages/OfficerDashboard";
 import Farmers from "./pages/Farmers";
 import OSchemes from "./pages/OSchemes";
-import OFarm from "./pages/OFarm";
 import ONotification from "./pages/Onotification";
+
+// Admin Pages
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminProfile from "./pages/AdminProfile";
+import AdminSchemes from "./pages/AdminSchemes";
+import AdminAuditLogs from "./pages/AdminAuditLogs";
+import OfficerVerification from "./pages/OfficerVerification";
 
 // Redux Actions
 import {
@@ -198,7 +205,7 @@ function App() {
         }
       }
     } catch (e) {
-      console.warn("API error during dashboard data fetch, using local mock data", e);
+      console.warn("API error during dashboard data fetch", e);
     }
   };
 
@@ -220,7 +227,7 @@ function App() {
             return;
           }
         } catch (e) {
-          console.warn("Backend offline, loading mock session.");
+          console.warn("Backend offline.");
         }
       }
 
@@ -228,53 +235,20 @@ function App() {
       if (!storedToken) {
         dispatch(setUser(null));
         dispatch(setToken(''));
-        dispatch(setDemoMode(true));
-        dispatch(setApiOnline(false));
+        dispatch(setFarms([]));
+        dispatch(setCrops([]));
         return;
       }
 
-      // Fallback to demo mode (farmer only — officers must use real backend login)
-      dispatch(setDemoMode(true));
-      dispatch(setApiOnline(false));
-      const tokenToUse = storedToken;
-      if (tokenToUse.includes('farmer')) {
-        const savedUserProfile = localStorage.getItem('demo_user_profile');
-        const mockUser = savedUserProfile ? JSON.parse(savedUserProfile) : {
-          userId: 101,
-          name: 'Siddharth',
-          email: 'farmer@agrismart.com',
-          phone: '9876543210',
-          role: 'FARMER',
-          district: 'Coimbatore',
-          state: 'Tamil Nadu',
-          createdAt: '2026-01-10T10:30:00'
-        };
-        dispatch(setUser(mockUser));
-
-        const defaultFarms = [
-          { farmId: 1, farmName: "Green Valley Farm", location: "Coimbatore", area: 4.0, soilType: "Black Soil", waterSource: "Borewell", latitude: 11.0168, longitude: 76.9558 },
-          { farmId: 2, farmName: "South Farm", location: "Pollachi", area: 2.0, soilType: "Red Soil", waterSource: "Canal", latitude: 10.659, longitude: 77.008 }
-        ];
-        const defaultCrops = [
-          { cropId: 1, cropName: "Rice", farmId: 1, plantedDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], duration: 120, status: "ACTIVE", expectedHarvestDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], description: "Paddy crop growing healthy." },
-          { cropId: 2, cropName: "Cotton", farmId: 2, plantedDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], duration: 150, status: "ACTIVE", expectedHarvestDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], description: "Vegetative stage progress." }
-        ];
-
-        const savedFarmsStr = localStorage.getItem('demo_farms');
-        const savedCropsStr = localStorage.getItem('demo_crops');
-
-        dispatch(setFarms(savedFarmsStr ? JSON.parse(savedFarmsStr) : defaultFarms));
-        dispatch(setCrops(savedCropsStr ? JSON.parse(savedCropsStr) : defaultCrops));
-        fetchWeatherDirectly(11.0168, 76.9558);
-      } else if (tokenToUse.includes('admin')) {
-        dispatch(setUser({ userId: 1, name: 'Siddharth Sharma', email: 'admin@agrismart.com', phone: '9999988888', role: 'ADMIN', district: 'Chandigarh', state: 'Punjab', createdAt: new Date().toISOString() }));
-      }
-      // Officers: no demo fallback — redirect to login so they authenticate via real backend
+      // If profile API failed or token invalid, reset session
+      dispatch(setUser(null));
+      dispatch(setToken(''));
+      dispatch(setFarms([]));
+      dispatch(setCrops([]));
     };
 
-
     initializeApp();
-  }, [token]);
+  }, []);
 
   // Protected Route guards
   const RequireAuth = ({ children, allowedRoles }) => {
@@ -282,7 +256,9 @@ function App() {
       return <Navigate to="/login" replace />;
     }
     if (allowedRoles && !allowedRoles.includes(user.role)) {
-      return <Navigate to={user.role === 'OFFICER' ? '/officer/dashboard' : '/dashboard'} replace />;
+      if (user.role === 'ADMIN') return <Navigate to="/admin" replace />;
+      if (user.role === 'OFFICER') return <Navigate to="/officer/dashboard" replace />;
+      return <Navigate to="/dashboard" replace />;
     }
     return children;
   };
@@ -315,12 +291,20 @@ function App() {
         <Route path="/officer/farmers" element={<RequireAuth allowedRoles={['OFFICER']}><Farmers /></RequireAuth>} />
         <Route path="/officer/oschemes" element={<RequireAuth allowedRoles={['OFFICER']}><OSchemes /></RequireAuth>} />
         <Route path="/officer/schemes" element={<RequireAuth allowedRoles={['OFFICER']}><OSchemes /></RequireAuth>} />
-        <Route path="/officer/ofarms" element={<RequireAuth allowedRoles={['OFFICER']}><OFarm /></RequireAuth>} />
-        <Route path="/officer/farms" element={<RequireAuth allowedRoles={['OFFICER']}><OFarm /></RequireAuth>} />
+        <Route path="/officer/ofarms" element={<Navigate to="/officer/farmers" replace />} />
+        <Route path="/officer/farms" element={<Navigate to="/officer/farmers" replace />} />
         <Route path="/officer/onification" element={<RequireAuth allowedRoles={['OFFICER']}><ONotification /></RequireAuth>} />
         <Route path="/officer/notifications" element={<RequireAuth allowedRoles={['OFFICER']}><ONotification /></RequireAuth>} />
         <Route path="/officer/oprofile" element={<RequireAuth allowedRoles={['OFFICER']}><OProfile /></RequireAuth>} />
         <Route path="/officer/profile" element={<RequireAuth allowedRoles={['OFFICER']}><OProfile /></RequireAuth>} />
+
+        {/* ================= ADMIN ================= */}
+        <Route path="/admin" element={<RequireAuth allowedRoles={['ADMIN']}><AdminDashboard /></RequireAuth>} />
+        <Route path="/admin/dashboard" element={<RequireAuth allowedRoles={['ADMIN']}><AdminDashboard /></RequireAuth>} />
+        <Route path="/admin/officers" element={<RequireAuth allowedRoles={['ADMIN']}><OfficerVerification /></RequireAuth>} />
+        <Route path="/admin/schemes" element={<RequireAuth allowedRoles={['ADMIN']}><AdminSchemes /></RequireAuth>} />
+        <Route path="/admin/audit-logs" element={<RequireAuth allowedRoles={['ADMIN']}><AdminAuditLogs /></RequireAuth>} />
+        <Route path="/admin/profile" element={<RequireAuth allowedRoles={['ADMIN']}><AdminProfile /></RequireAuth>} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

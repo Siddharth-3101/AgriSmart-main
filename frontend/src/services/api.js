@@ -9,6 +9,8 @@ export const API = {
   CROP:      import.meta.env.VITE_CROP_API      || "http://localhost:8083",
   WEATHER:   import.meta.env.VITE_WEATHER_API   || "http://localhost:8084",
   ANALYTICS: import.meta.env.VITE_ANALYTICS_API || "http://localhost:8085",
+  AI:        import.meta.env.VITE_AI_API        || "http://localhost:8086",
+  ML:        import.meta.env.VITE_ML_API        || "http://localhost:8000",
 };
 
 /** Build standard auth headers */
@@ -29,15 +31,21 @@ async function request(url, options = {}) {
     const res = await fetch(url, options);
     if (res.status === 401) throw new Error("UNAUTHORIZED");
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: res.statusText }));
-      throw new Error(err.message || `HTTP ${res.status}`);
+      const errData = await res.json().catch(() => ({ message: res.statusText }));
+      const msg = errData.detail
+        ? (typeof errData.detail === "string" ? errData.detail : JSON.stringify(errData.detail))
+        : (errData.message || `HTTP ${res.status}`);
+      const err = new Error(msg);
+      err.status = res.status;
+      err.data = errData;
+      throw err;
     }
     // Some endpoints return empty body (204 No Content)
     const text = await res.text();
     return text ? JSON.parse(text) : null;
   } catch (e) {
     if (e.message === "UNAUTHORIZED") throw e;
-    throw new Error(e.message || "Network error");
+    throw e;
   }
 }
 
@@ -65,6 +73,10 @@ export const documentApi = {
   /** Farmer: get own documents */
   getMyDocuments: (token) =>
     request(`${API.USER}/api/documents/my`, { headers: authHeaders(token) }),
+
+  /** Officer/Admin: get all farmer documents */
+  getAllDocuments: (token) =>
+    request(`${API.USER}/api/documents/all`, { headers: authHeaders(token) }),
 
   /** Officer: get documents for a specific farmer */
   getUserDocuments: (token, userId) =>
@@ -119,14 +131,53 @@ export const userApi = {
       body: JSON.stringify(payload),
     }),
 
+  getSoilHealth: (token) =>
+    request(`${API.USER}/api/users/soil-health`, { headers: authHeaders(token) }),
+
   getAllUsers: (token) =>
     request(`${API.USER}/api/users`, { headers: authHeaders(token) }),
 
   getAllFarmers: (token) =>
     request(`${API.USER}/api/users/farmers`, { headers: authHeaders(token) }),
 
+  getAllOfficers: (token) =>
+    request(`${API.USER}/api/users/officers`, { headers: authHeaders(token) }),
+
+  verifyOfficer: (token, userId, verified = true) =>
+    request(`${API.USER}/api/users/officers/${userId}/verify?verified=${verified}`, {
+      method: "PUT",
+      headers: authHeaders(token),
+    }),
+
+  assignOfficerRegion: (token, userId, payload) =>
+    request(`${API.USER}/api/users/officers/${userId}/assignment`, {
+      method: "PUT",
+      headers: jsonHeaders(token),
+      body: JSON.stringify(payload),
+    }),
+
   getUserById: (token, userId) =>
     request(`${API.USER}/api/users/${userId}`, { headers: authHeaders(token) }),
+};
+
+// ─── AI / ML API ────────────────────────────────────────────────────────────
+
+export const aiApi = {
+  /** Get AI Fertilizer & Irrigation Advisory */
+  getRecommendation: (token, farmId, cropId) =>
+    request(`${API.AI}/api/ai/recommendation`, {
+      method: "POST",
+      headers: jsonHeaders(token),
+      body: JSON.stringify({ farmId, cropId }),
+    }),
+
+  /** Get ML Crop Recommendation */
+  getCropRecommendation: (payload) =>
+    request(`${API.ML}/recommend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
 };
 
 // ─── Farm API ──────────────────────────────────────────────────────────────
@@ -137,6 +188,22 @@ export const farmApi = {
 
   getFarmsByUser: (token, userId) =>
     request(`${API.FARM}/api/farms?userId=${userId}`, { headers: authHeaders(token) }),
+
+  getFarmById: (token, farmId) =>
+    request(`${API.FARM}/api/farms/${farmId}`, { headers: authHeaders(token) }),
+
+  updateFarm: (token, farmId, data) =>
+    request(`${API.FARM}/api/farms/${farmId}`, {
+      method: "PUT",
+      headers: authHeaders(token),
+      body: JSON.stringify(data),
+    }),
+
+  deleteFarm: (token, farmId) =>
+    request(`${API.FARM}/api/farms/${farmId}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    }),
 };
 
 // ─── Crop API ──────────────────────────────────────────────────────────────
@@ -164,6 +231,26 @@ export const schemeApi = {
 
   getRecommendedSchemes: (token) =>
     request(`${API.ANALYTICS}/api/schemes/recommend`, { headers: authHeaders(token) }),
+
+  createScheme: (token, payload) =>
+    request(`${API.ANALYTICS}/api/schemes`, {
+      method: "POST",
+      headers: jsonHeaders(token),
+      body: JSON.stringify(payload),
+    }),
+
+  updateScheme: (token, schemeId, payload) =>
+    request(`${API.ANALYTICS}/api/schemes/${schemeId}`, {
+      method: "PUT",
+      headers: jsonHeaders(token),
+      body: JSON.stringify(payload),
+    }),
+
+  deleteScheme: (token, schemeId) =>
+    request(`${API.ANALYTICS}/api/schemes/${schemeId}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    }),
 
   applyToScheme: (token, schemeId) =>
     request(`${API.ANALYTICS}/api/schemes/apply?schemeId=${schemeId}`, {
@@ -214,3 +301,48 @@ export const notificationApi = {
       headers: authHeaders(token),
     }),
 };
+
+// ─── Admin API ─────────────────────────────────────────────────────────────
+
+export const adminApi = {
+  getAuditLogs: (token) =>
+    request(`${API.USER}/api/audit-logs`, { headers: authHeaders(token) }),
+};
+
+// ─── Event API ─────────────────────────────────────────────────────────────
+
+export const eventApi = {
+  getAllEvents: (token) =>
+    request(`${API.ANALYTICS}/api/events`, { headers: authHeaders(token) }),
+
+  createEvent: (token, payload) =>
+    request(`${API.ANALYTICS}/api/events`, {
+      method: "POST",
+      headers: jsonHeaders(token),
+      body: JSON.stringify(payload),
+    }),
+
+  deleteEvent: (token, id) =>
+    request(`${API.ANALYTICS}/api/events/${id}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    }),
+
+  registerForEvent: (token, id, payload) =>
+    request(`${API.ANALYTICS}/api/events/${id}/register`, {
+      method: "POST",
+      headers: jsonHeaders(token),
+      body: JSON.stringify(payload),
+    }),
+
+  getEventRegistrations: (token, id) =>
+    request(`${API.ANALYTICS}/api/events/${id}/registrations`, {
+      headers: authHeaders(token),
+    }),
+
+  getMyRegistrations: (token) =>
+    request(`${API.ANALYTICS}/api/events/registrations/my`, {
+      headers: authHeaders(token),
+    }),
+};
+

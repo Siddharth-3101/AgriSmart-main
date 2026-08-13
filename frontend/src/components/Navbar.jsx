@@ -116,6 +116,15 @@ const Navbar = ({ transparent = false }) => {
                     </li>
                 )}
 
+                {user && user.role === "ADMIN" && (
+                    <li>
+                        <Link to="/admin">
+                            <FaTachometerAlt />
+                            Admin Dashboard
+                        </Link>
+                    </li>
+                )}
+
                 {user ? (
                     <li className="logoutBtn">
                         <a href="#" onClick={handleLogoutClick}>

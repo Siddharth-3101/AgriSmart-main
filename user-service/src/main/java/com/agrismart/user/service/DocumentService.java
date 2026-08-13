@@ -4,7 +4,9 @@ import com.agrismart.user.dto.DocumentResponse;
 import com.agrismart.user.entity.UserDocument;
 import com.agrismart.user.exception.BadRequestException;
 import com.agrismart.user.exception.ResourceNotFoundException;
+import com.agrismart.user.entity.User;
 import com.agrismart.user.repository.UserDocumentRepository;
+import com.agrismart.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -27,9 +29,18 @@ import java.util.stream.Collectors;
 public class DocumentService {
 
     private final UserDocumentRepository documentRepository;
-    public DocumentService(UserDocumentRepository documentRepository) {
-    	this.documentRepository=documentRepository;
+    private final UserRepository userRepository;
+
+    public DocumentService(UserDocumentRepository documentRepository, UserRepository userRepository) {
+        this.documentRepository = documentRepository;
+        this.userRepository = userRepository;
     }
+
+    public List<DocumentResponse> getAllDocuments() {
+        return documentRepository.findAll()
+                .stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
     @Value("${app.upload.path:./uploads/documents}")
     private String uploadBasePath;
 
@@ -174,9 +185,21 @@ public class DocumentService {
     }
 
     private DocumentResponse toResponse(UserDocument doc) {
+        String uName = null;
+        String uEmail = null;
+        if (doc.getUserId() != null) {
+            User u = userRepository.findById(doc.getUserId()).orElse(null);
+            if (u != null) {
+                uName = u.getName();
+                uEmail = u.getEmail();
+            }
+        }
+
         return DocumentResponse.builder()
                 .documentId(doc.getDocumentId())
                 .userId(doc.getUserId())
+                .userName(uName)
+                .userEmail(uEmail)
                 .documentType(doc.getDocumentType())
                 .originalFilename(doc.getOriginalFilename())
                 .fileSize(doc.getFileSize())

@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 public class DocumentResponse {
     private Long documentId;
     private Long userId;
+    private String userName;
+    private String userEmail;
     private String documentType;
     private String originalFilename;
     private Long fileSize;
@@ -18,9 +20,11 @@ public class DocumentResponse {
     public DocumentResponse() {
     }
 
-    public DocumentResponse(Long documentId, Long userId, String documentType, String originalFilename, Long fileSize, String mimeType, String verificationStatus, Long verifiedByOfficerId, LocalDateTime verifiedAt, String rejectionRemarks, LocalDateTime uploadedAt) {
+    public DocumentResponse(Long documentId, Long userId, String userName, String userEmail, String documentType, String originalFilename, Long fileSize, String mimeType, String verificationStatus, Long verifiedByOfficerId, LocalDateTime verifiedAt, String rejectionRemarks, LocalDateTime uploadedAt) {
         this.documentId = documentId;
         this.userId = userId;
+        this.userName = userName;
+        this.userEmail = userEmail;
         this.documentType = documentType;
         this.originalFilename = originalFilename;
         this.fileSize = fileSize;
@@ -46,6 +50,22 @@ public class DocumentResponse {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
+
+    public String getUserEmail() {
+        return userEmail;
+    }
+
+    public void setUserEmail(String userEmail) {
+        this.userEmail = userEmail;
     }
 
     public String getDocumentType() {
@@ -127,6 +147,8 @@ public class DocumentResponse {
     public static class DocumentResponseBuilder {
         private Long documentId;
         private Long userId;
+        private String userName;
+        private String userEmail;
         private String documentType;
         private String originalFilename;
         private Long fileSize;
@@ -144,6 +166,16 @@ public class DocumentResponse {
 
         public DocumentResponseBuilder userId(Long userId) {
             this.userId = userId;
+            return this;
+        }
+
+        public DocumentResponseBuilder userName(String userName) {
+            this.userName = userName;
+            return this;
+        }
+
+        public DocumentResponseBuilder userEmail(String userEmail) {
+            this.userEmail = userEmail;
             return this;
         }
 
@@ -193,8 +225,7 @@ public class DocumentResponse {
         }
 
         public DocumentResponse build() {
-            return new DocumentResponse(documentId, userId, documentType, originalFilename, fileSize, mimeType, verificationStatus, verifiedByOfficerId, verifiedAt, rejectionRemarks, uploadedAt);
+            return new DocumentResponse(documentId, userId, userName, userEmail, documentType, originalFilename, fileSize, mimeType, verificationStatus, verifiedByOfficerId, verifiedAt, rejectionRemarks, uploadedAt);
         }
     }
 }
-

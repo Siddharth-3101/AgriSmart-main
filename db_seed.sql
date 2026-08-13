@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     role VARCHAR(20) NOT NULL,
     district VARCHAR(100),
     state VARCHAR(100),
+    is_verified TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -95,13 +96,12 @@ TRUNCATE TABLE schemes;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
--- 1. Seed Users (password is 'password' BCrypt encrypted: $2a$10$JvuidiCaQA5a4ubogBjFVebrh3UH9arLoW0TDF6GYmL6762iOCUl6)
+-- 1. Seed System Users (Admin & Base Officer only — NO dummy farmers)
 INSERT INTO users (user_id, name, phone, email, password_hash, role, district, state, created_at) VALUES
 (1, 'Siddharth Sharma', '9999988888', 'admin@agrismart.com', '$2a$10$JvuidiCaQA5a4ubogBjFVebrh3UH9arLoW0TDF6GYmL6762iOCUl6', 'ADMIN', 'Chandigarh', 'Punjab', '2026-01-01 09:00:00'),
-(101, 'Siddharth', '9876543210', 'farmer@agrismart.com', '$2a$10$JvuidiCaQA5a4ubogBjFVebrh3UH9arLoW0TDF6GYmL6762iOCUl6', 'FARMER', 'Coimbatore', 'Tamil Nadu', '2026-01-10 10:30:00'),
 (102, 'Officer Priya', '9777766666', 'officer@agrismart.com', '$2a$10$JvuidiCaQA5a4ubogBjFVebrh3UH9arLoW0TDF6GYmL6762iOCUl6', 'OFFICER', 'Ambala', 'Haryana', '2026-01-15 14:00:00');
 
--- 2. Seed Schemes
+-- 2. Seed Schemes (System Reference Data)
 INSERT INTO schemes (scheme_id, scheme_name, category, description, benefits, eligibility_criteria, required_documents, official_link, state) VALUES
 (1, 'PM-KISAN (Pradhan Mantri Kisan Samman Nidhi)', 'Financial Assistance', 'Income support scheme providing financial benefit to all landholding farmer families across India to buy agriculture inputs.', '₹6,000 per year in 3 equal installments', 'All landholding farmer families with cultivable land in their name.', 'Aadhaar Card, Land Records, Bank Account Details', 'https://pmkisan.gov.in', 'All States'),
 (2, 'Kisan Credit Card (KCC)', 'Loans', 'Provides farmers with timely access to short-term credit loans for cultivation, crop production, and post-harvest maintenance expenses.', 'Short-term credit up to ₹3 Lakhs at low interest rate (4%)', 'All farmers, tenant farmers, and sharecroppers.', 'Aadhaar Card, Land Possession Certificate, Bank Account Details', 'https://pmkisan.gov.in/Documents/KCC.pdf', 'All States'),
@@ -115,13 +115,3 @@ INSERT INTO schemes (scheme_id, scheme_name, category, description, benefits, el
 (10, 'SMAM (Sub-Mission on Agricultural Mechanization)', 'Subsidies', 'Promotes agricultural mechanization by providing subsidies for buying modern agricultural machinery like tractors, rotavators, power tillers.', '40% to 50% subsidy on purchase of verified agricultural machinery', 'All landholding farmers, special preference to women and SC/ST farmers.', 'Aadhaar Card, Land Records (Patta), Bank Account Details, Machinery quotation', 'https://agrimachinery.nic.in', 'All States'),
 (11, 'Punjab Free Power Scheme for Agriculture', 'Subsidies', 'State government initiative providing free electricity supply to agricultural tube wells to support irrigation for farmers in Punjab.', '100% free electricity supply for agricultural tubewells', 'Punjab resident landholding farmers owning agricultural electric pump tube wells.', 'Aadhaar Card, Land Ownership Certificate', 'https://www.pspcl.in', 'Punjab'),
 (12, 'Haryana Bhavantar Bharpayee Yojana (BBY)', 'Financial Assistance', 'State scheme compensating farmers for price deficit of horticultural crops (vegetables & fruits) when market prices fall below floor prices.', 'Price compensation difference deposited directly to bank accounts', 'Haryana resident farmers registered on Meri Fasal Mera Byora (MFMB) portal cultivating notified crops.', 'Aadhaar Card, Meri Fasal Mera Byora Registration Slip, Bank Account', 'https://ekharid.haryana.gov.in', 'Haryana');
-
--- 3. Seed Farms
-INSERT INTO farms (farm_id, farm_name, location, area, soil_type, water_source, latitude, longitude, user_id) VALUES
-(1, 'Green Valley Farm', 'Coimbatore | [[11.015, 76.95], [11.02, 76.95], [11.02, 76.96], [11.015, 76.96]]', 4.0, 'Black Soil', 'Borewell', 11.0168, 76.9558, 101),
-(2, 'South Farm', 'Pollachi | [[10.65, 77.00], [10.67, 77.00], [10.67, 77.02], [10.65, 77.02]]', 2.0, 'Red Soil', 'Canal', 10.659, 77.008, 101);
-
--- 4. Seed Crops
-INSERT INTO crops (crop_id, crop_name, duration, description, status, season, planted_date, expected_harvest_date, farm_id, yield) VALUES
-(1, 'Rice', 120, 'Area: 2.5 Acres | Coordinates: [[11.016, 76.952], [11.019, 76.952], [11.019, 76.955], [11.016, 76.955]]', 'ACTIVE', 'KHARIF', '2026-06-03', '2026-10-01', 1, NULL),
-(2, 'Cotton', 150, 'Area: 1.5 Acres | Coordinates: [[10.652, 77.002], [10.665, 77.002], [10.665, 77.015], [10.652, 77.015]]', 'ACTIVE', 'KHARIF', '2026-05-03', '2026-10-01', 2, NULL);

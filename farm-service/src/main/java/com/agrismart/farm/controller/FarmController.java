@@ -99,4 +99,14 @@ public class FarmController {
 
         return ResponseEntity.ok(farmService.viewFarms(userId, userRole, pageable));
     }
+
+    @GetMapping("/health")
+    @Operation(summary = "Health check endpoint", description = "Returns service availability status")
+    public ResponseEntity<java.util.Map<String, Object>> healthCheck() {
+        java.util.Map<String, Object> map = new java.util.HashMap<>();
+        map.put("service", "Farm Service");
+        map.put("status", "UP");
+        map.put("timestamp", System.currentTimeMillis());
+        return ResponseEntity.ok(map);
+    }
 }

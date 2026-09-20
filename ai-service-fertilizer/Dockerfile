@@ -1,4 +1,4 @@
-# Multi-stage build for crop-service
+# Multi-stage build for ai-service-fertilizer
 FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /app
 
@@ -11,20 +11,20 @@ COPY weather-service/pom.xml ./weather-service/
 COPY analytics-service/pom.xml ./analytics-service/
 COPY ai-service-fertilizer/pom.xml ./ai-service-fertilizer/
 
-# Copy source code for crop-service
-COPY crop-service/src ./crop-service/src
+# Copy source code for ai-service-fertilizer
+COPY ai-service-fertilizer/src ./ai-service-fertilizer/src
 
-# Package crop-service
-RUN mvn clean package -pl crop-service -am -DskipTests
+# Package ai-service
+RUN mvn clean package -pl ai-service-fertilizer -am -DskipTests
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # Copy built jar
-COPY --from=build /app/crop-service/target/crop-service-*.jar app.jar
+COPY --from=build /app/ai-service-fertilizer/target/ai-service-*.jar app.jar
 
-ENV PORT=8083
-EXPOSE 8083
+ENV PORT=8086
+EXPOSE 8086
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

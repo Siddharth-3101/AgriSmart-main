@@ -9,7 +9,7 @@ COPY farm-service/pom.xml ./farm-service/
 COPY crop-service/pom.xml ./crop-service/
 COPY weather-service/pom.xml ./weather-service/
 COPY analytics-service/pom.xml ./analytics-service/
-COPY ai-service(fertilizer)/pom.xml ./ai-service(fertilizer)/
+COPY ai-service-fertilizer/pom.xml ./ai-service-fertilizer/
 
 # Copy source code for weather-service
 COPY weather-service/src ./weather-service/src

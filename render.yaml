@@ -1,3 +1,4 @@
+# AgriSmart Render Blueprint v1.1
 services:
   # 1. User Service
   - type: web

@@ -208,16 +208,22 @@ public class UserService {
     public List<UserResponse> getAllFarmers(Long requesterId, String requesterRole) {
         List<User> farmers = userRepository.findByRole(Role.FARMER);
         
-        // Regional filtering: If caller is an OFFICER, limit returned farmers to their assigned district/state
+        // Regional filtering: If caller is an OFFICER, limit returned farmers strictly to their assigned district
         if ("ROLE_OFFICER".equals(requesterRole) && requesterId != null) {
             User officer = userRepository.findById(requesterId).orElse(null);
-            if (officer != null && officer.getDistrict() != null && !officer.getDistrict().trim().isEmpty()) {
-                String officerDist = officer.getDistrict().trim().toLowerCase();
+            if (officer != null) {
+                String officerDist = officer.getDistrict() != null ? officer.getDistrict().trim().toLowerCase() : "";
                 String officerState = officer.getState() != null ? officer.getState().trim().toLowerCase() : "";
-                farmers = farmers.stream()
-                        .filter(f -> (f.getDistrict() != null && f.getDistrict().trim().toLowerCase().equals(officerDist)) ||
-                                     (f.getState() != null && f.getState().trim().toLowerCase().equals(officerState)))
-                        .collect(Collectors.toList());
+                
+                if (!officerDist.isEmpty()) {
+                    farmers = farmers.stream()
+                            .filter(f -> f.getDistrict() != null && f.getDistrict().trim().toLowerCase().equals(officerDist))
+                            .collect(Collectors.toList());
+                } else if (!officerState.isEmpty()) {
+                    farmers = farmers.stream()
+                            .filter(f -> f.getState() != null && f.getState().trim().toLowerCase().equals(officerState))
+                            .collect(Collectors.toList());
+                }
             }
         }
         

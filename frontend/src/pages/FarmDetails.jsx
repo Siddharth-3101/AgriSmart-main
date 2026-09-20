@@ -25,7 +25,7 @@ import {
 } from "react-icons/fa";
 
 import { deleteFarmAction, updateFarmAction } from "../main";
-import { farmApi } from "../services/api";
+import { farmApi, API } from "../services/api";
 
 export default function FarmDetails() {
   const navigate = useNavigate();
@@ -62,7 +62,7 @@ export default function FarmDetails() {
 
     if (!demoMode && token && id) {
       setLoading(true);
-      fetch(`http://localhost:8082/api/farms/${id}`, {
+      fetch(`${API.FARM}/api/farms/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
         .then((res) => {
@@ -124,7 +124,7 @@ export default function FarmDetails() {
 
     try {
       if (!demoMode && token) {
-        const res = await fetch(`http://localhost:8082/api/farms/${dbFarm.farmId}`, {
+        const res = await fetch(`${API.FARM}/api/farms/${dbFarm.farmId}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -258,7 +258,7 @@ export default function FarmDetails() {
 
     try {
       if (!demoMode) {
-        const res = await fetch(`http://localhost:8082/api/farms/${dbFarm.farmId}`, {
+        const res = await fetch(`${API.FARM}/api/farms/${dbFarm.farmId}`, {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${token}`

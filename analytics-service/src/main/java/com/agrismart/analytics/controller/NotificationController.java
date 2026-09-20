@@ -44,8 +44,8 @@ public class NotificationController {
 
     @GetMapping
     @Operation(summary = "Get all notifications", description = "List all notifications (accessible by farmers too)")
-    public ResponseEntity<List<Map<String, Object>>> getAllNotifications() {
-        return ResponseEntity.ok(notificationService.getAllNotifications());
+    public ResponseEntity<List<Map<String, Object>>> getAllNotifications(Authentication authentication) {
+        return ResponseEntity.ok(notificationService.getAllNotifications(authentication));
     }
 
     @DeleteMapping("/{id}")

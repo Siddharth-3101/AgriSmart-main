@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import "../App.css";
 import "../styles/sanjay.css";
 
@@ -18,10 +19,12 @@ import {
   CalendarDays,
   TriangleAlert,
   ListTodo,
-  Bot
+  Bot,
+  Plus
 } from "lucide-react";
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const user = useSelector((state) => state.agri.user);
   const farms = useSelector((state) => state.agri.farms) || [];
   const crops = useSelector((state) => state.agri.crops) || [];
@@ -32,10 +35,12 @@ export default function Dashboard() {
 
   // Filter regional alerts
   const filteredAlerts = broadcastNotifications.filter(n => {
-    if (!user || !n || !n.targetRegion) return false;
-    const region = n.targetRegion.toLowerCase();
-    return region === 'all regions' ||
-           (user.district && region === user.district.toLowerCase()) ||
+    if (!n) return false;
+    const tr = n.target_region || n.targetRegion || 'All Farmers';
+    const region = tr.toLowerCase();
+    if (region === 'all regions' || region === 'all farmers' || region === 'all states') return true;
+    if (!user) return true;
+    return (user.district && region === user.district.toLowerCase()) ||
            (user.state && region === user.state.toLowerCase());
   });
 
@@ -265,18 +270,26 @@ export default function Dashboard() {
 
             <div className="dashboard-scroll-box">
               {filteredAlerts.length > 0 ? (
-                filteredAlerts.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`dashboard-advisory ${item.type === 'Rain Alert' ? 'alert' : 'info'}`}
-                  >
-                    <h4>{item.title} ({item.targetRegion})</h4>
-                    <p>{item.message}</p>
-                    <span style={{ fontSize: '10px', color: 'gray', display: 'block', marginTop: '6px', textAlign: 'right' }}>
-                      — {item.sender} ({new Date(item.timestamp).toLocaleDateString()})
-                    </span>
-                  </div>
-                ))
+                filteredAlerts.map((item) => {
+                  const itemId = item.notification_id || item.notificationId || item.id;
+                  const targetRegion = item.target_region || item.targetRegion || 'All Farmers';
+                  const senderName = item.sender_name || item.sender || 'Officer';
+                  const rawDate = item.created_at || item.timestamp;
+                  const dateStr = rawDate ? new Date(rawDate).toLocaleDateString() : '';
+                  const isHigh = item.priority === 'High' || item.type === 'Weather Alert' || item.type === 'Emergency';
+                  return (
+                    <div
+                      key={itemId}
+                      className={`dashboard-advisory ${isHigh ? 'alert' : 'info'}`}
+                    >
+                      <h4>{item.title} ({targetRegion})</h4>
+                      <p>{item.message}</p>
+                      <span style={{ fontSize: '10px', color: 'gray', display: 'block', marginTop: '6px', textAlign: 'right' }}>
+                        — {senderName} {dateStr ? `(${dateStr})` : ''}
+                      </span>
+                    </div>
+                  );
+                })
               ) : (
                 <div className="dashboard-advisory info">
                   <h4>No warnings in your region</h4>
@@ -313,12 +326,38 @@ export default function Dashboard() {
             </div>
 
             <div className="dashboard-scroll-box">
-              {recommendations.map((item) => (
-                <div className="dashboard-recommend-card" key={item.id}>
-                  <h4>{item.title}</h4>
-                  <p>{item.message}</p>
+              {farms.length === 0 ? (
+                <div style={{ padding: "20px 10px", textAlign: "center", color: "var(--text-muted)" }}>
+                  <p style={{ fontSize: "13px", fontWeight: 600, marginBottom: "14px" }}>
+                    No farms registered yet. Add a farm to view personalized AI recommendations.
+                  </p>
+                  <button
+                    onClick={() => navigate("/farm-management/add")}
+                    style={{
+                      padding: "8px 18px",
+                      borderRadius: "10px",
+                      border: "none",
+                      background: "linear-gradient(135deg, #16a34a, #15803d)",
+                      color: "#ffffff",
+                      fontWeight: 700,
+                      fontSize: "13px",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px"
+                    }}
+                  >
+                    <Plus style={{ width: 15, height: 15 }} /> Add Farm
+                  </button>
                 </div>
-              ))}
+              ) : (
+                recommendations.map((item) => (
+                  <div className="dashboard-recommend-card" key={item.id}>
+                    <h4>{item.title}</h4>
+                    <p>{item.message}</p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

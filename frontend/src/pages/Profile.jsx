@@ -7,7 +7,8 @@ import "../styles/sid.css";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import FloatingAI from "../components/FloatingAI";
-import { userApi } from "../services/api";
+import { userApi, API } from "../services/api";
+import { ALL_STATES, getDistrictsForState } from "../constants/locations";
 
 import {
   FaUser,
@@ -289,10 +290,18 @@ export default function Profile() {
 
   const handleProfileChange = (e) => {
     const { name, type, checked, value } = e.target;
-    setProfileForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value
-    }));
+    if (name === "state") {
+      setProfileForm((prev) => ({
+        ...prev,
+        state: value,
+        district: "",
+      }));
+    } else {
+      setProfileForm((prev) => ({
+        ...prev,
+        [name]: type === "checkbox" ? checked : value
+      }));
+    }
   };
 
   const handlePasswordChange = (e) => {
@@ -335,7 +344,7 @@ export default function Profile() {
 
     try {
       if (!demoMode && token) {
-        const res = await fetch("http://localhost:8081/api/users/profile", {
+        const res = await fetch(`${API.USER}/api/users/profile`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -382,7 +391,7 @@ export default function Profile() {
 
     try {
       if (!demoMode && token) {
-        const res = await fetch("http://localhost:8081/api/users/profile", {
+        const res = await fetch(`${API.USER}/api/users/profile`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -558,23 +567,38 @@ export default function Profile() {
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
                     <div className="inputGroup">
                       <label>State</label>
-                      <input
-                        type="text"
+                      <select
                         name="state"
                         value={profileForm.state}
                         onChange={handleProfileChange}
                         required
-                      />
+                      >
+                        <option value="">Select State / UT</option>
+                        {ALL_STATES.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="inputGroup">
                       <label>District</label>
-                      <input
-                        type="text"
+                      <select
                         name="district"
                         value={profileForm.district}
                         onChange={handleProfileChange}
+                        disabled={!profileForm.state}
                         required
-                      />
+                      >
+                        <option value="">{profileForm.state ? "Select District" : "Select State First"}</option>
+                        {(() => {
+                          const list = getDistrictsForState(profileForm.state);
+                          if (profileForm.district && !list.includes(profileForm.district)) {
+                            return [profileForm.district, ...list];
+                          }
+                          return list;
+                        })().map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="inputGroup">
                       <label>Taluk / Block</label>

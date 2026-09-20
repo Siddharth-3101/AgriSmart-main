@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { addChatMessage, setChatLanguage } from "../main";
+import { API } from "../services/api";
 
 export default function Chatbot() {
   const dispatch = useDispatch();
@@ -81,7 +82,7 @@ export default function Chatbot() {
           history: historyPayload
         };
 
-        const res = await fetch("http://localhost:8083/api/crops/chatbot", {
+        const res = await fetch(`${API.CROP}/api/crops/chatbot`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

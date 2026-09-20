@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { toast } from "react-toastify";
 import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaLeaf } from "react-icons/fa";
 import bgVideo from "../assets/greenwhitevideo.mp4";
+import { API } from "../services/api";
 
 // Redux actions
 import { setUser, setToken, setDemoMode, setApiOnline, setFarms, setCrops } from "../main";
@@ -40,7 +41,7 @@ function Login() {
 
     try {
       // 1. Try real backend login
-      const res = await fetch("http://localhost:8081/api/users/login", {
+      const res = await fetch(`${API.USER}/api/users/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: formData.email, password: formData.password }),

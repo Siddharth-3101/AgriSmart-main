@@ -37,6 +37,9 @@ import AdminSchemes from "./pages/AdminSchemes";
 import AdminAuditLogs from "./pages/AdminAuditLogs";
 import OfficerVerification from "./pages/OfficerVerification";
 
+// API Service
+import { API } from "./services/api";
+
 // Redux Actions
 import {
   setUser,
@@ -122,7 +125,7 @@ function App() {
 
       // 1. Fetch Farms for all roles
       let currentFarms = [];
-      const farmsRes = await fetch(`http://localhost:8082/api/farms`, { headers });
+      const farmsRes = await fetch(`${API.FARM}/api/farms`, { headers });
       if (farmsRes.ok) {
         const farmData = await farmsRes.json();
         currentFarms = farmData.content || farmData || [];
@@ -130,7 +133,7 @@ function App() {
       }
 
       // 2. Fetch Crops for all roles
-      const cropsRes = await fetch(`http://localhost:8083/api/crops?size=1000`, { headers });
+      const cropsRes = await fetch(`${API.CROP}/api/crops?size=1000`, { headers });
       if (cropsRes.ok) {
         const cropData = await cropsRes.json();
         dispatch(setCrops(cropData.content || cropData || []));
@@ -138,7 +141,7 @@ function App() {
 
       // 3. Fetch Users for Officers & Admins
       if (isOfficer || isAdmin) {
-        const usersRes = await fetch(`http://localhost:8081/api/users`, { headers });
+        const usersRes = await fetch(`${API.USER}/api/users`, { headers });
         if (usersRes.ok) {
           const userData = await usersRes.json();
           dispatch(setUsersList(userData.content || userData || []));
@@ -146,14 +149,14 @@ function App() {
       }
 
       // 3.5 Fetch Schemes for all roles
-      const schemesRes = await fetch(`http://localhost:8085/api/schemes`, { headers });
+      const schemesRes = await fetch(`${API.ANALYTICS}/api/schemes`, { headers });
       if (schemesRes.ok) {
         const schemeData = await schemesRes.json();
         dispatch(setSchemes(schemeData));
       }
 
       // 3.6 Fetch Broadcast Notifications for all roles
-      const notificationsRes = await fetch(`http://localhost:8085/api/notifications`, { headers });
+      const notificationsRes = await fetch(`${API.ANALYTICS}/api/notifications`, { headers });
       if (notificationsRes.ok) {
         const notificationData = await notificationsRes.json();
         dispatch(setBroadcastNotifications(notificationData));
@@ -161,7 +164,7 @@ function App() {
 
       // 3.7 Fetch Scheme Applications for Farmer
       if (isFarmer) {
-        const appRes = await fetch(`http://localhost:8085/api/schemes/applications/me`, { headers });
+        const appRes = await fetch(`${API.ANALYTICS}/api/schemes/applications/me`, { headers });
         if (appRes.ok) {
           const appData = await appRes.json();
           const appliedIds = appData.map(a => a.scheme_id || a.schemeId);
@@ -169,7 +172,7 @@ function App() {
         }
 
         // 3.8 Fetch farmer documents
-        const docsRes = await fetch(`http://localhost:8081/api/documents/my`, { headers });
+        const docsRes = await fetch(`${API.USER}/api/documents/my`, { headers });
         if (docsRes.ok) {
           const docsData = await docsRes.json();
           dispatch(setDocuments(Array.isArray(docsData) ? docsData : []));
@@ -181,7 +184,7 @@ function App() {
       if (isOfficer) analyticsEndpoint = '/api/analytics/officer';
       if (isAdmin) analyticsEndpoint = '/api/analytics/admin';
 
-      const analyticsRes = await fetch(`http://localhost:8085${analyticsEndpoint}`, { headers });
+      const analyticsRes = await fetch(`${API.ANALYTICS}${analyticsEndpoint}`, { headers });
       if (analyticsRes.ok) {
         const analyticsData = await analyticsRes.json();
         dispatch(setAnalytics(analyticsData));
@@ -192,9 +195,9 @@ function App() {
         const activeFarmId = currentFarms[0].farmId;
         const activeFarm = currentFarms[0];
         if (activeFarm.latitude && activeFarm.longitude) {
-          const weatherRes = await fetch(`http://localhost:8084/api/weather/current/${activeFarmId}`, { headers });
-          const forecastRes = await fetch(`http://localhost:8084/api/weather/forecast/${activeFarmId}`, { headers });
-          const historyRes = await fetch(`http://localhost:8084/api/weather/history/${activeFarmId}`, { headers });
+          const weatherRes = await fetch(`${API.WEATHER}/api/weather/current/${activeFarmId}`, { headers });
+          const forecastRes = await fetch(`${API.WEATHER}/api/weather/forecast/${activeFarmId}`, { headers });
+          const historyRes = await fetch(`${API.WEATHER}/api/weather/history/${activeFarmId}`, { headers });
 
           if (weatherRes.ok) dispatch(setWeather(await weatherRes.json()));
           if (forecastRes.ok) {
@@ -214,7 +217,7 @@ function App() {
       const storedToken = localStorage.getItem('token');
       if (storedToken) {
         try {
-          const res = await fetch(`http://localhost:8081/api/users/profile`, {
+          const res = await fetch(`${API.USER}/api/users/profile`, {
             headers: { 'Authorization': `Bearer ${storedToken}` }
           });
           if (res.ok) {

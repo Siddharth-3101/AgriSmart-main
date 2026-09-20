@@ -1,0 +1,114 @@
+services:
+  # 1. User Service
+  - type: web
+    name: agrismart-user-service
+    runtime: docker
+    dockerfilePath: user-service/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        value: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+
+  # 2. Farm Service
+  - type: web
+    name: agrismart-farm-service
+    runtime: docker
+    dockerfilePath: farm-service/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        value: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+
+  # 3. Crop Service
+  - type: web
+    name: agrismart-crop-service
+    runtime: docker
+    dockerfilePath: crop-service/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        value: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      - key: GEMINI_API_KEY
+        sync: false
+
+  # 4. Weather Service
+  - type: web
+    name: agrismart-weather-service
+    runtime: docker
+    dockerfilePath: weather-service/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        value: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      - key: OPENWEATHER_API_KEY
+        sync: false
+
+  # 5. Analytics Service
+  - type: web
+    name: agrismart-analytics-service
+    runtime: docker
+    dockerfilePath: analytics-service/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        value: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+
+  # 6. AI Fertilizer & Advisory Service
+  - type: web
+    name: agrismart-ai-service
+    runtime: docker
+    dockerfilePath: ai-service(fertilizer)/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: FARM_SERVICE_URL
+        sync: false
+      - key: CROP_SERVICE_URL
+        sync: false
+      - key: WEATHER_SERVICE_URL
+        sync: false
+      - key: USER_SERVICE_URL
+        sync: false
+
+  # 7. Python ML Crop Recommendation Service
+  - type: web
+    name: agrismart-ml-service
+    runtime: docker
+    dockerfilePath: agrismart-ml-service/Dockerfile
+    dockerContext: .
+    plan: free

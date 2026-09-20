@@ -28,6 +28,7 @@ import {
 
 import { setUser, logout, setDocuments } from "../main";
 import { documentApi } from "../services/api";
+import { ALL_STATES, getDistrictsForState } from "../constants/locations";
 
 const DOC_TYPES = [
   "Aadhaar Card",
@@ -306,10 +307,19 @@ const handleSoilSubmit = async (e) => {
   });
 
   const handleProfileChange = (e) => {
-    setProfileForm({
-      ...profileForm,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    if (name === "state") {
+      setProfileForm((prev) => ({
+        ...prev,
+        state: value,
+        district: "",
+      }));
+    } else {
+      setProfileForm((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
   };
 
   const handlePasswordChange = (e) => {
@@ -527,24 +537,39 @@ const handleSoilSubmit = async (e) => {
                     />
                   </div>
                   <div className="inputGroup">
-                    <label>District</label>
-                    <input
-                      type="text"
-                      name="district"
-                      value={profileForm.district}
-                      onChange={handleProfileChange}
-                      required
-                    />
-                  </div>
-                  <div className="inputGroup">
                     <label>State</label>
-                    <input
-                      type="text"
+                    <select
                       name="state"
                       value={profileForm.state}
                       onChange={handleProfileChange}
                       required
-                    />
+                    >
+                      <option value="">Select State / UT</option>
+                      {ALL_STATES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="inputGroup">
+                    <label>District</label>
+                    <select
+                      name="district"
+                      value={profileForm.district}
+                      onChange={handleProfileChange}
+                      disabled={!profileForm.state}
+                      required
+                    >
+                      <option value="">{profileForm.state ? "Select District" : "Select State First"}</option>
+                      {(() => {
+                        const list = getDistrictsForState(profileForm.state);
+                        if (profileForm.district && !list.includes(profileForm.district)) {
+                          return [profileForm.district, ...list];
+                        }
+                        return list;
+                      })().map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="inputGroup">
                     <label>Member Since</label>

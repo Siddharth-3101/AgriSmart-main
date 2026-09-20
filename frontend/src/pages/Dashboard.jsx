@@ -25,7 +25,8 @@ import {
   MapPin,
   Users,
   CheckCircle2,
-  X
+  X,
+  Plus
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -124,10 +125,12 @@ export default function Dashboard() {
 
   // Filter regional alerts
   const filteredAlerts = broadcastNotifications.filter(n => {
-    if (!user || !n || !n.targetRegion) return false;
-    const region = n.targetRegion.toLowerCase();
-    return region === 'all regions' ||
-           (user.district && region === user.district.toLowerCase()) ||
+    if (!n) return false;
+    const tr = n.target_region || n.targetRegion || 'All Farmers';
+    const region = tr.toLowerCase();
+    if (region === 'all regions' || region === 'all farmers' || region === 'all states') return true;
+    if (!user) return true;
+    return (user.district && region === user.district.toLowerCase()) ||
            (user.state && region === user.state.toLowerCase());
   });
 
@@ -373,18 +376,26 @@ export default function Dashboard() {
 
             <div className="dashboard-scroll-box">
               {filteredAlerts.length > 0 ? (
-                filteredAlerts.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`dashboard-advisory ${item.type === 'Rain Alert' ? 'alert' : 'info'}`}
-                  >
-                    <h4>{item.title} ({item.targetRegion})</h4>
-                    <p>{item.message}</p>
-                    <span style={{ fontSize: '10px', color: 'gray', display: 'block', marginTop: '6px', textAlign: 'right' }}>
-                      — {item.sender} ({new Date(item.timestamp).toLocaleDateString()})
-                    </span>
-                  </div>
-                ))
+                filteredAlerts.map((item) => {
+                  const itemId = item.notification_id || item.notificationId || item.id;
+                  const targetRegion = item.target_region || item.targetRegion || 'All Farmers';
+                  const senderName = item.sender_name || item.sender || 'Officer';
+                  const rawDate = item.created_at || item.timestamp;
+                  const dateStr = rawDate ? new Date(rawDate).toLocaleDateString() : '';
+                  const isHigh = item.priority === 'High' || item.type === 'Weather Alert' || item.type === 'Emergency';
+                  return (
+                    <div
+                      key={itemId}
+                      className={`dashboard-advisory ${isHigh ? 'alert' : 'info'}`}
+                    >
+                      <h4>{item.title} ({targetRegion})</h4>
+                      <p>{item.message}</p>
+                      <span style={{ fontSize: '10px', color: 'gray', display: 'block', marginTop: '6px', textAlign: 'right' }}>
+                        — {senderName} {dateStr ? `(${dateStr})` : ''}
+                      </span>
+                    </div>
+                  );
+                })
               ) : (
                 <div className="dashboard-advisory info">
                   <h4>No warnings in your region</h4>
@@ -401,32 +412,62 @@ export default function Dashboard() {
                 <Bot style={{ color: "var(--primary)" }} />
                 <h2>AI Farm Advisory</h2>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)" }}>Farm Plot:</span>
-                <select
-                  value={selectedFarmId}
-                  onChange={(e) => setSelectedFarmId(e.target.value)}
-                  style={{
-                    padding: "7px 14px",
-                    borderRadius: 10,
-                    border: "1.5px solid #cbdcd0",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: "var(--primary)",
-                    background: "#ffffff",
-                    cursor: "pointer"
-                  }}
-                >
-                  {farms.map((f) => (
-                    <option key={f.farmId} value={f.farmId}>
-                      {f.farmName || `Farm #${f.farmId}`} ({f.soilType || "Loamy Soil"})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {farms.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)" }}>Farm Plot:</span>
+                  <select
+                    value={selectedFarmId}
+                    onChange={(e) => setSelectedFarmId(e.target.value)}
+                    style={{
+                      padding: "7px 14px",
+                      borderRadius: 10,
+                      border: "1.5px solid #cbdcd0",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: "var(--primary)",
+                      background: "#ffffff",
+                      cursor: "pointer"
+                    }}
+                  >
+                    {farms.map((f) => (
+                      <option key={f.farmId} value={f.farmId}>
+                        {f.farmName || `Farm #${f.farmId}`} ({f.soilType || "Loamy Soil"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
-            {loadingFarmAi ? (
+            {farms.length === 0 ? (
+              <div style={{ padding: "32px 20px", textAlign: "center", background: "#f8fafc", borderRadius: "14px", border: "1.5px dashed #cbd5e1" }}>
+                <Bot style={{ width: 36, height: 36, color: "#94a3b8", marginBottom: 10 }} />
+                <h4 style={{ margin: "0 0 6px", color: "#1e293b", fontSize: 15, fontWeight: 700 }}>No Farm Plots Registered</h4>
+                <p style={{ margin: "0 0 18px", color: "#64748b", fontSize: 13.5, maxWidth: 450, marginLeft: "auto", marginRight: "auto", lineHeight: 1.5 }}>
+                  Register your farm plot to get personalized AI fertilizer recommendations, smart irrigation schedules, and crop suitability insights.
+                </p>
+                <button
+                  onClick={() => navigate("/farm-management/add")}
+                  style={{
+                    padding: "10px 22px",
+                    borderRadius: 12,
+                    border: "none",
+                    background: "linear-gradient(135deg, #16a34a, #15803d)",
+                    color: "#ffffff",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 14px rgba(22, 163, 74, 0.3)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <Plus style={{ width: 18, height: 18 }} /> Add Farm
+                </button>
+              </div>
+            ) : loadingFarmAi ? (
               <div style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)", fontSize: "14px" }}>
                 ⏳ Querying AI Advisory Service for {selectedFarm ? selectedFarm.farmName : "Farm"}...
               </div>

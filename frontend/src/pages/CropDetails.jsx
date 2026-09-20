@@ -8,7 +8,7 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import FloatingAI from "../components/FloatingAI";
 import LeafletViewer from "../components/LeafletViewer";
-import { aiApi } from "../services/api";
+import { aiApi, API } from "../services/api";
 import * as turf from "@turf/turf";
 
 import {
@@ -77,7 +77,7 @@ export default function CropDetails() {
 
     if (!demoMode && token && id) {
       setLoading(true);
-      fetch(`http://localhost:8083/api/crops/${id}`, {
+      fetch(`${API.CROP}/api/crops/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
         .then((res) => {
@@ -412,7 +412,7 @@ export default function CropDetails() {
 
     try {
       if (!demoMode) {
-        const res = await fetch(`http://localhost:8083/api/crops/${crop.cropId}`, {
+        const res = await fetch(`${API.CROP}/api/crops/${crop.cropId}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -464,7 +464,7 @@ export default function CropDetails() {
 
     try {
       if (!demoMode) {
-        const res = await fetch(`http://localhost:8083/api/crops/${crop.cropId}`, {
+        const res = await fetch(`${API.CROP}/api/crops/${crop.cropId}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",

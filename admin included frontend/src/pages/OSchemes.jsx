@@ -140,11 +140,8 @@ export default function OSchemes() {
   return (
     <div className="officer-container">
 
-      {/* Overlay */}
-      <div className={`sidebar-overlay ${showSidebar ? "show-overlay" : ""}`} onClick={() => setShowSidebar(false)} />
-
       {/* Sidebar */}
-      <aside className={`officer-sidebar ${showSidebar ? "show-sidebar" : ""}`}>
+      <aside className="officer-sidebar show-sidebar">
         <div className="sidebar-header">
           <h2>AgriSmart</h2>
           <p>Scheme Administration</p>
@@ -169,7 +166,6 @@ export default function OSchemes() {
         {/* Navbar */}
         <header className="dashboard-navbar">
           <div className="navbar-left">
-            <div className="menu-toggle-btn" onClick={() => setShowSidebar(true)}><FaBars /></div>
             <div className="search-container">
               <FaSearch className="search-icon" />
               <input

@@ -5,7 +5,7 @@ import { toast } from "react-toastify";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import FloatingAI from "../components/FloatingAI";
-import { documentApi, schemeApi } from "../services/api";
+import { documentApi, schemeApi, API } from "../services/api";
 
 import "../styles/schemes.css";
 
@@ -344,7 +344,7 @@ export default function Schemes() {
     try {
       const method = isApplied ? "DELETE" : "POST";
       const endpoint = isApplied ? "withdraw" : "apply";
-      const res = await fetch(`http://localhost:8085/api/schemes/${endpoint}?schemeId=${schemeId}`, {
+      const res = await fetch(`${API.ANALYTICS}/api/schemes/${endpoint}?schemeId=${schemeId}`, {
         method: method,
         headers: {
           'Authorization': `Bearer ${token}`

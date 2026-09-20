@@ -12,6 +12,7 @@ import {
 import { MdAgriculture } from "react-icons/md";
 import { setUser, setToken } from "../main";
 import { documentApi, schemeApi, userApi, farmApi } from "../services/api";
+import { ALL_STATES, getDistrictsForState } from "../constants/locations";
 
 const MENU = [
   { name: "Dashboard",     icon: <FaHome />,         path: "/officer/dashboard",   key: "dashboard" },
@@ -130,16 +131,31 @@ export default function Farmers() {
     navigate("/login");
   };
 
-  /* ── Filtered + Paginated ── */
-  const districts = ["All", ...new Set(farmers.map(f => f.district).filter(Boolean))];
+  /* ── Sync search query param ── */
+  useEffect(() => {
+    const q = searchParams.get("search");
+    setSearchTerm(q || "");
+  }, [searchParams]);
 
-  const filtered = farmers.filter(f => {
+  /* ── Filtered + Paginated ── */
+  const officerDist = user?.district ? user.district.trim().toLowerCase() : null;
+
+  const districtScopedFarmers = farmers.filter(f => {
+    if (!officerDist) return true;
+    return f.district && f.district.trim().toLowerCase() === officerDist;
+  });
+
+  const officerStateDistricts = user?.state ? getDistrictsForState(user.state) : [];
+  const districts = ["All", ...new Set([...officerStateDistricts, ...districtScopedFarmers.map(f => f.district).filter(Boolean)])];
+
+  const filtered = districtScopedFarmers.filter(f => {
     const q = searchTerm.toLowerCase();
     const matchName  = (f.name || "").toLowerCase().includes(q);
     const matchPhone = (f.phone || "").includes(q);
     const matchDist  = (f.district || "").toLowerCase().includes(q);
+    const matchState = (f.state || "").toLowerCase().includes(q);
     const matchDistrFilter = districtFilter === "All" || f.district === districtFilter;
-    return (matchName || matchPhone || matchDist) && matchDistrFilter;
+    return (matchName || matchPhone || matchDist || matchState) && matchDistrFilter;
   });
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -151,11 +167,8 @@ export default function Farmers() {
   return (
     <div className="officer-container">
 
-      {/* Overlay */}
-      <div className={`sidebar-overlay ${showSidebar ? "show-overlay" : ""}`} onClick={() => setShowSidebar(false)} />
-
       {/* Sidebar */}
-      <aside className={`officer-sidebar ${showSidebar ? "show-sidebar" : ""}`}>
+      <aside className="officer-sidebar show-sidebar">
         <div className="sidebar-header">
           <h2>AgriSmart</h2>
           <p>Farmers Directory</p>
@@ -180,7 +193,6 @@ export default function Farmers() {
         {/* Navbar */}
         <header className="dashboard-navbar">
           <div className="navbar-left">
-            <div className="menu-toggle-btn" onClick={() => setShowSidebar(true)}><FaBars /></div>
             <div className="search-container">
               <FaSearch className="search-icon" />
               <input

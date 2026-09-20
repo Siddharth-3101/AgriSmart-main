@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
+import { API } from "../services/api";
 
 export default function FarmAI() {
 
@@ -51,7 +52,7 @@ export default function FarmAI() {
     console.log("Sending AI request:", requestBody);
 
     const response = await fetch(
-      "http://localhost:8086/api/ai/recommendation",
+      `${API.AI}/api/ai/recommendation`,
       {
         method: "POST",
 

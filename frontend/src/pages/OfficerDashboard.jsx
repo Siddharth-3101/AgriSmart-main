@@ -172,9 +172,13 @@ export default function OfficerDashboard() {
     navigate("/login");
   };
 
-  const handleSearch = (e) => {
-    if ((e.key === "Enter" || e.type === "click") && searchTerm.trim()) {
-      navigate(`/officer/farmers?search=${encodeURIComponent(searchTerm)}`);
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    const query = searchTerm.trim();
+    if (query) {
+      navigate(`/officer/farmers?search=${encodeURIComponent(query)}`);
+    } else {
+      navigate(`/officer/farmers`);
     }
   };
 
@@ -216,17 +220,16 @@ export default function OfficerDashboard() {
         {/* Navbar */}
         <header className="dashboard-navbar">
           <div className="navbar-left">
-            <div className="search-container">
-              <FaSearch className="search-icon" style={{ cursor: "pointer" }} onClick={handleSearch} />
+            <form className="search-container" onSubmit={handleSearchSubmit} style={{ display: "flex", alignItems: "center" }}>
+              <FaSearch className="search-icon" style={{ cursor: "pointer" }} onClick={handleSearchSubmit} />
               <input
                 className="search-input"
                 type="text"
                 placeholder="Search farmers, schemes..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                onKeyDown={handleSearch}
               />
-            </div>
+            </form>
           </div>
           <div className="navbar-right">
             <button className="notification-btn" onClick={() => navigate("/officer/onification")}><FaBell /></button>
@@ -577,7 +580,7 @@ export default function OfficerDashboard() {
                       <h4 style={{ color: "#0f172a", fontWeight: 700, fontSize: 14, margin: "0 0 4px" }}>{n.title}</h4>
                       <p style={{ color: "#475569", fontSize: 13, margin: "0 0 6px" }}>{n.message}</p>
                       <span style={{ color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
-                        {n.created_at ? new Date(n.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Just now"}
+                        {(n.created_at || n.timestamp) ? new Date(n.created_at || n.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Just now"}
                       </span>
                     </div>
                   </div>

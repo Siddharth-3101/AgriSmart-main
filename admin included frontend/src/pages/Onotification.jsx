@@ -11,8 +11,9 @@ import {
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip
 } from "recharts";
-import { setUser, setToken } from "../main";
+import { setUser, setToken, addBroadcastNotificationAction, deleteBroadcastNotificationAction } from "../main";
 import { notificationApi } from "../services/api";
+import { ALL_STATES, getDistrictsForState } from "../constants/locations";
 
 const MENU = [
   { name: "Dashboard",     icon: <FaHome />,         path: "/officer/dashboard",   key: "dashboard" },
@@ -23,9 +24,9 @@ const MENU = [
   { name: "Profile",       icon: <FaUserCircle />,    path: "/officer/oprofile",    key: "profile"   },
 ];
 
-const PRIORITY_OPTS  = ["High", "Normal", "Low"];
-const TYPE_OPTS      = ["Weather Alert", "Pest/Disease", "Government Scheme", "Market Price", "General Update", "Emergency"];
-const TARGET_OPTS    = ["All Farmers", "Tamil Nadu", "Karnataka", "Maharashtra", "Punjab", "Haryana", "Telangana", "All States"];
+const DEFAULT_TARGET_OPTS = ["All States", "All Regions"];
+const TYPE_OPTS     = ["Weather Alert", "Government Scheme", "Pest Advisory", "General News"];
+const PRIORITY_OPTS = ["High", "Normal", "Low"];
 const PIE_COLORS     = ["#ef4444", "#16a34a", "#f59e0b", "#3b82f6", "#8b5cf6", "#06b6d4"];
 
 export default function ONotification() {
@@ -34,6 +35,15 @@ export default function ONotification() {
 
   const user   = useSelector(s => s.agri.user);
   const token  = useSelector(s => s.agri.token);
+
+  const officerStateDistricts = user?.state ? getDistrictsForState(user.state) : [];
+  const targetOpts = Array.from(new Set([
+    "All Farmers",
+    ...(user?.district ? [user.district] : []),
+    ...(user?.state ? [user.state] : []),
+    ...officerStateDistricts,
+    ...DEFAULT_TARGET_OPTS
+  ]));
 
   const [showSidebar,     setShowSidebar]     = useState(false);
   const [notifications,   setNotifications]   = useState([]);
@@ -47,7 +57,7 @@ export default function ONotification() {
   const [message,     setMessage]     = useState("");
   const [type,        setType]        = useState("Weather Alert");
   const [priority,    setPriority]    = useState("High");
-  const [targetRegion, setTargetRegion] = useState("All Farmers");
+  const [targetRegion, setTargetRegion] = useState(user?.district || user?.state || "All Farmers");
 
   /* ── Fetch notifications ── */
   useEffect(() => {
@@ -75,8 +85,9 @@ export default function ONotification() {
         targetRegion,
       });
       setNotifications(prev => [created, ...prev]);
+      dispatch(addBroadcastNotificationAction(created));
       setTitle(""); setMessage("");
-      setType("Weather Alert"); setPriority("High"); setTargetRegion("All Farmers");
+      setType("Weather Alert"); setPriority("High"); setTargetRegion(user?.district || user?.state || "All Farmers");
       toast.success("Broadcast sent successfully!");
     } catch (err) {
       toast.error("Failed to send broadcast: " + err.message);
@@ -89,6 +100,7 @@ export default function ONotification() {
     try {
       await notificationApi.deleteNotification(token, id);
       setNotifications(prev => prev.filter(n => (n.notification_id || n.notificationId) !== id));
+      dispatch(deleteBroadcastNotificationAction(id));
       toast.success("Broadcast deleted.");
     } catch {
       toast.error("Failed to delete broadcast.");
@@ -128,11 +140,8 @@ export default function ONotification() {
   return (
     <div className="officer-container">
 
-      {/* Overlay */}
-      <div className={`sidebar-overlay ${showSidebar ? "show-overlay" : ""}`} onClick={() => setShowSidebar(false)} />
-
       {/* Sidebar */}
-      <aside className={`officer-sidebar ${showSidebar ? "show-sidebar" : ""}`}>
+      <aside className="officer-sidebar show-sidebar">
         <div className="sidebar-header">
           <h2>AgriSmart</h2>
           <p>Broadcast Center</p>
@@ -157,7 +166,6 @@ export default function ONotification() {
         {/* Navbar */}
         <header className="dashboard-navbar">
           <div className="navbar-left">
-            <div className="menu-toggle-btn" onClick={() => setShowSidebar(true)}><FaBars /></div>
             <div className="search-container">
               <FaSearch className="search-icon" />
               <input
@@ -260,7 +268,7 @@ export default function ONotification() {
                   onChange={e => setTargetRegion(e.target.value)}
                   style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, outline: "none", background: "#fff", cursor: "pointer" }}
                 >
-                  {TARGET_OPTS.map(r => <option key={r}>{r}</option>)}
+                  {targetOpts.map(r => <option key={r}>{r}</option>)}
                 </select>
               </div>
 

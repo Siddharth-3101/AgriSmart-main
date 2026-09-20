@@ -12,7 +12,8 @@ import {
 } from "react-icons/fa";
 import { MdAgriculture } from "react-icons/md";
 import { setUser, setToken } from "../main";
-import { documentApi, schemeApi, userApi, analyticsApi } from "../services/api";
+import { documentApi, schemeApi, userApi, farmApi, analyticsApi } from "../services/api";
+import { ALL_STATES, getDistrictsForState } from "../constants/locations";
 import LeafletViewer from "../components/LeafletViewer";
 import {
   ResponsiveContainer, BarChart, Bar, Cell,
@@ -96,6 +97,12 @@ export default function Farmers() {
       });
   }, [token]);
 
+  /* ── Sync search query param ── */
+  useEffect(() => {
+    const q = searchParams.get("search");
+    setFarmerSearch(q || "");
+  }, [searchParams]);
+
   /* ── Fetch officer analytics from API ── */
   useEffect(() => {
     if (!token) return;
@@ -161,18 +168,29 @@ export default function Farmers() {
   };
 
   /* ── Farmers filter & pagination ── */
-  const districts = ["All", ...new Set(farmers.map(f => f.district).filter(Boolean))];
+  const officerDist = user?.district ? user.district.trim().toLowerCase() : null;
+
+  const districtScopedFarmers = useMemo(() => {
+    return farmers.filter(f => {
+      if (!officerDist) return true;
+      return f.district && f.district.trim().toLowerCase() === officerDist;
+    });
+  }, [farmers, officerDist]);
+
+  const officerStateDistricts = user?.state ? getDistrictsForState(user.state) : [];
+  const districts = ["All", ...new Set([...officerStateDistricts, ...districtScopedFarmers.map(f => f.district).filter(Boolean)])];
 
   const filteredFarmers = useMemo(() => {
-    return farmers.filter(f => {
+    return districtScopedFarmers.filter(f => {
       const q = farmerSearch.toLowerCase();
       const matchName  = (f.name || "").toLowerCase().includes(q);
       const matchPhone = (f.phone || "").includes(q);
       const matchDist  = (f.district || "").toLowerCase().includes(q);
+      const matchState = (f.state || "").toLowerCase().includes(q);
       const matchDistrFilter = districtFilter === "All" || f.district === districtFilter;
-      return (matchName || matchPhone || matchDist) && matchDistrFilter;
+      return (matchName || matchPhone || matchDist || matchState) && matchDistrFilter;
     });
-  }, [farmers, farmerSearch, districtFilter]);
+  }, [districtScopedFarmers, farmerSearch, districtFilter]);
 
   const totalPages = Math.ceil(filteredFarmers.length / itemsPerPage);
   const paginatedFarmers = useMemo(() => {
@@ -256,7 +274,6 @@ export default function Farmers() {
         {/* Navbar */}
         <header className="dashboard-navbar">
           <div className="navbar-left">
-            <div className="menu-toggle-btn" onClick={() => setShowSidebar(true)}><FaBars /></div>
             <div className="search-container">
               <FaSearch className="search-icon" />
               <input

@@ -24,7 +24,7 @@ import * as turf from "@turf/turf";
 import "../styles/sid.css";
 import { addCropAction } from "../main";
 import LeafletMap from "../components/LeafletMap";
-import { aiApi } from "../services/api";
+import { aiApi, API } from "../services/api";
 
 // Fix Leaflet marker icons
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -368,7 +368,7 @@ function AddCrop() {
 
     try {
       if (!demoMode) {
-        const res = await fetch("http://localhost:8083/api/crops", {
+        const res = await fetch(`${API.CROP}/api/crops`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

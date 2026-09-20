@@ -15,6 +15,8 @@ import {
   FaMapMarkerAlt,
 } from "react-icons/fa";
 import bgVideo from "../assets/greenwhitevideo.mp4";
+import { ALL_STATES, getDistrictsForState } from "../constants/locations";
+import { API } from "../services/api";
 
 function Register() {
   const [showPassword, setShowPassword] = useState(false);
@@ -40,10 +42,19 @@ function Register() {
   });
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+    if (name === "state") {
+      setFormData((prev) => ({
+        ...prev,
+        state: value,
+        district: "",
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
   };
 
   const handleRegister = async (e) => {
@@ -73,7 +84,7 @@ function Register() {
     };
 
     try {
-      const res = await fetch("http://localhost:8081/api/users/register", {
+      const res = await fetch(`${API.USER}/api/users/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -243,27 +254,36 @@ function Register() {
             {/* State */}
             <div className="input-box">
               <FaMapMarkerAlt className="input-icon" />
-              <input
-                type="text"
-                placeholder="State"
+              <select
                 name="state"
                 value={formData.state}
                 onChange={handleChange}
                 required
-              />
+                style={{ width: "100%", height: "100%", background: "transparent", border: "none", outline: "none", color: formData.state ? "inherit" : "#94a3b8", cursor: "pointer" }}
+              >
+                <option value="">Select State / UT</option>
+                {ALL_STATES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
             </div>
 
             {/* District */}
             <div className="input-box">
               <FaMapMarkerAlt className="input-icon" />
-              <input
-                type="text"
-                placeholder="District"
+              <select
                 name="district"
                 value={formData.district}
                 onChange={handleChange}
+                disabled={!formData.state}
                 required
-              />
+                style={{ width: "100%", height: "100%", background: "transparent", border: "none", outline: "none", color: formData.district ? "inherit" : "#94a3b8", cursor: formData.state ? "pointer" : "not-allowed" }}
+              >
+                <option value="">{formData.state ? "Select District" : "Select State First"}</option>
+                {getDistrictsForState(formData.state).map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
             </div>
           </div>
 

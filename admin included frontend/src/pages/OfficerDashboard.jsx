@@ -122,8 +122,9 @@ export default function OfficerDashboard() {
     value: Number(d.value || d.count || 0)
   }));
 
-  const farmers = usersList.filter(u => u.role === "FARMER");
-  const recentFarmers = [...farmers].slice(-5).reverse();
+  const officerDist = user?.district ? user.district.trim().toLowerCase() : null;
+  const districtScopedFarmers = usersList.filter(u => u.role === "FARMER" && (!officerDist || (u.district && u.district.trim().toLowerCase() === officerDist)));
+  const recentFarmers = [...districtScopedFarmers].slice(-5).reverse();
 
   /* ── Logout ── */
   const handleLogout = () => {
@@ -133,23 +134,21 @@ export default function OfficerDashboard() {
     navigate("/login");
   };
 
-  const handleSearch = (e) => {
-    if ((e.key === "Enter" || e.type === "click") && searchTerm.trim()) {
-      navigate(`/officer/farmers?search=${encodeURIComponent(searchTerm)}`);
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    const query = searchTerm.trim();
+    if (query) {
+      navigate(`/officer/farmers?search=${encodeURIComponent(query)}`);
+    } else {
+      navigate(`/officer/farmers`);
     }
   };
 
   return (
     <div className="officer-container">
 
-      {/* Overlay */}
-      <div
-        className={`sidebar-overlay ${showSidebar ? "show-overlay" : ""}`}
-        onClick={() => setShowSidebar(false)}
-      />
-
       {/* Sidebar */}
-      <aside className={`officer-sidebar ${showSidebar ? "show-sidebar" : ""}`}>
+      <aside className="officer-sidebar show-sidebar">
         <div className="sidebar-header">
           <h2>AgriSmart</h2>
           <p>Officer Portal</p>
@@ -178,18 +177,16 @@ export default function OfficerDashboard() {
         {/* Navbar */}
         <header className="dashboard-navbar">
           <div className="navbar-left">
-            <div className="menu-toggle-btn" onClick={() => setShowSidebar(true)}><FaBars /></div>
-            <div className="search-container">
-              <FaSearch className="search-icon" style={{ cursor: "pointer" }} onClick={handleSearch} />
+            <form className="search-container" onSubmit={handleSearchSubmit} style={{ display: "flex", alignItems: "center" }}>
+              <FaSearch className="search-icon" style={{ cursor: "pointer" }} onClick={handleSearchSubmit} />
               <input
                 className="search-input"
                 type="text"
                 placeholder="Search farmers, schemes..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                onKeyDown={handleSearch}
               />
-            </div>
+            </form>
           </div>
           <div className="navbar-right">
             <button className="notification-btn" onClick={() => navigate("/officer/onification")}><FaBell /></button>
@@ -429,7 +426,7 @@ export default function OfficerDashboard() {
                       <h4 style={{ color: "#0f172a", fontWeight: 700, fontSize: 14, margin: "0 0 4px" }}>{n.title}</h4>
                       <p style={{ color: "#475569", fontSize: 13, margin: "0 0 6px" }}>{n.message}</p>
                       <span style={{ color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
-                        {n.created_at ? new Date(n.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Just now"}
+                        {(n.created_at || n.timestamp) ? new Date(n.created_at || n.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Just now"}
                       </span>
                     </div>
                   </div>

@@ -8,6 +8,7 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import FloatingAI from "../components/FloatingAI";
 import LeafletMap from "../components/LeafletMap";
+import { ALL_STATES, getDistrictsForState } from "../constants/locations";
 
 import {
   FaArrowLeft,
@@ -18,6 +19,7 @@ import {
 } from "react-icons/fa";
 
 import { addFarmAction } from "../main";
+import { API } from "../services/api";
 
 export default function AddFarm() {
   const navigate = useNavigate();
@@ -53,10 +55,19 @@ export default function AddFarm() {
   });
 
   const handleChange = (e) => {
-    setFarm({
-      ...farm,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    if (name === "state") {
+      setFarm((prev) => ({
+        ...prev,
+        state: value,
+        district: "",
+      }));
+    } else {
+      setFarm((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -93,7 +104,7 @@ export default function AddFarm() {
 
     try {
       if (!demoMode) {
-        const res = await fetch("http://localhost:8082/api/farms", {
+        const res = await fetch(`${API.FARM}/api/farms`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -189,27 +200,34 @@ export default function AddFarm() {
                 </div>
 
                 <div className="formGroup">
-                  <label>District</label>
-                  <input
-                    type="text"
-                    name="district"
-                    value={farm.district}
-                    onChange={handleChange}
-                    placeholder="e.g. Coimbatore"
-                    required
-                  />
-                </div>
-
-                <div className="formGroup">
                   <label>State</label>
-                  <input
-                    type="text"
+                  <select
                     name="state"
                     value={farm.state}
                     onChange={handleChange}
-                    placeholder="e.g. Tamil Nadu"
                     required
-                  />
+                  >
+                    <option value="">Select State / UT</option>
+                    {ALL_STATES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="formGroup">
+                  <label>District</label>
+                  <select
+                    name="district"
+                    value={farm.district}
+                    onChange={handleChange}
+                    disabled={!farm.state}
+                    required
+                  >
+                    <option value="">{farm.state ? "Select District" : "Select State First"}</option>
+                    {getDistrictsForState(farm.state).map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>

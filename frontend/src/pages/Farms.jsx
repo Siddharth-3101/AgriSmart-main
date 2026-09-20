@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { setFarms } from "../main";
+import { API } from "../services/api";
 import "../styles/farm.css";
 
 import Navbar from "../components/Navbar";
@@ -33,7 +34,7 @@ export default function Farms() {
     const loadFarms = async () => {
       if (!demoMode && token) {
         try {
-          const res = await fetch("http://localhost:8082/api/farms", {
+          const res = await fetch(`${API.FARM}/api/farms`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (res.ok) {

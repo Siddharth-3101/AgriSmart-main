@@ -4,12 +4,13 @@ import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { toast } from "react-toastify";
 import {
-  FaBars, FaHome, FaUsers, FaTractor, FaClipboardList,
+  FaHome, FaUsers, FaTractor, FaClipboardList,
   FaBell, FaSearch, FaUserCircle, FaMapMarkerAlt,
   FaEnvelope, FaPhone, FaEdit, FaSignOutAlt, FaShieldAlt, FaKey, FaSave, FaTimes
 } from "react-icons/fa";
 import { setUser, setToken } from "../main";
 import { userApi } from "../services/api";
+import { ALL_STATES, getDistrictsForState } from "../constants/locations";
 
 const MENU = [
   { name: "Dashboard",     icon: <FaHome />,         path: "/officer/dashboard",   key: "dashboard" },
@@ -26,8 +27,6 @@ export default function OProfile() {
 
   const user  = useSelector(s => s.agri.user);
   const token = useSelector(s => s.agri.token);
-
-  const [showSidebar, setShowSidebar] = useState(false);
 
   // Profile edit
   const [editMode,   setEditMode]   = useState(false);
@@ -98,12 +97,15 @@ export default function OProfile() {
     { label: "Joined",      value: user?.createdAt ? new Date(user.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "-", icon: <FaEdit /> },
   ];
 
+  const availableDistricts = getDistrictsForState(editState);
+  if (editDistrict && !availableDistricts.includes(editDistrict)) {
+    availableDistricts.unshift(editDistrict);
+  }
+
   return (
     <div className="officer-container">
 
-      <div className={`sidebar-overlay ${showSidebar ? "show-overlay" : ""}`} onClick={() => setShowSidebar(false)} />
-
-      <aside className={`officer-sidebar ${showSidebar ? "show-sidebar" : ""}`}>
+      <aside className="officer-sidebar show-sidebar">
         <div className="sidebar-header">
           <h2>AgriSmart</h2>
           <p>Officer Portal</p>
@@ -127,7 +129,6 @@ export default function OProfile() {
         {/* Navbar */}
         <header className="dashboard-navbar">
           <div className="navbar-left">
-            <div className="menu-toggle-btn" onClick={() => setShowSidebar(true)}><FaBars /></div>
             <div className="search-container">
               <FaSearch className="search-icon" />
               <input className="search-input" type="text" placeholder="Search..." readOnly />
@@ -178,7 +179,7 @@ export default function OProfile() {
                         <span style={{ color: "#16a34a" }}>{item.icon}</span>
                         {item.label}
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{item.value}</span>
+                      <strong style={{ fontSize: 13, color: "#0f172a" }}>{item.value}</strong>
                     </div>
                   ))}
                 </div>
@@ -187,23 +188,55 @@ export default function OProfile() {
               <>
                 <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", margin: "0 0 16px" }}>Edit Profile</h3>
                 <form onSubmit={handleSaveProfile} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  {[
-                    { label: "Full Name *", value: editName, set: setEditName, type: "text", required: true },
-                    { label: "Phone",       value: editPhone, set: setEditPhone, type: "tel" },
-                    { label: "District",    value: editDistrict, set: setEditDistrict, type: "text" },
-                    { label: "State",       value: editState, set: setEditState, type: "text" },
-                  ].map((field, i) => (
-                    <div key={i}>
-                      <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 5 }}>{field.label}</label>
-                      <input
-                        type={field.type}
-                        value={field.value}
-                        onChange={e => field.set(e.target.value)}
-                        required={field.required}
-                        style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
-                      />
-                    </div>
-                  ))}
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 5 }}>Full Name *</label>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      required
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 5 }}>Phone</label>
+                    <input
+                      type="tel"
+                      value={editPhone}
+                      onChange={e => setEditPhone(e.target.value)}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 5 }}>State</label>
+                    <select
+                      value={editState}
+                      onChange={e => {
+                        setEditState(e.target.value);
+                        setEditDistrict("");
+                      }}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "inherit", background: "#fff" }}
+                    >
+                      <option value="">Select State / UT</option>
+                      {ALL_STATES.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#334155", display: "block", marginBottom: 5 }}>District</label>
+                    <select
+                      value={editDistrict}
+                      onChange={e => setEditDistrict(e.target.value)}
+                      disabled={!editState}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "inherit", background: "#fff", cursor: editState ? "pointer" : "not-allowed" }}
+                    >
+                      <option value="">{editState ? "Select District" : "Select State First"}</option>
+                      {availableDistricts.map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
                     <button type="button" onClick={() => setEditMode(false)} style={{ flex: 1, padding: "11px", borderRadius: 12, border: "1.5px solid #e2e8f0", background: "#fff", color: "#64748b", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                       Cancel
